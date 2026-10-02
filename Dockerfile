@@ -29,8 +29,11 @@ RUN go build -trimpath -ldflags="-s -w" -o /app ./cmd/server
 FROM gcr.io/distroless/static-debian12:nonroot
 
 # Migrations are embedded into the binary with //go:embed rather than copied,
-# because distroless has no shell and no ability to read a bind mount.
+# because distroless has no shell and no ability to read a bind mount. The config
+# is copied to /config.yaml so the image is standalone; a deployment can still
+# override it with a bind mount at the same path or via OAUTH_CONFIG_FILE.
 COPY --from=build /app /app
+COPY config.yaml /config.yaml
 
 USER nonroot:nonroot
 EXPOSE 8080

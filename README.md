@@ -22,12 +22,20 @@ A production-grade OAuth 2.1 and OpenID Connect authorization server built from 
 ```bash
 git clone <repo>
 cd oauth-server
-cp .env.example .env   # then set OAUTH_KEY_ENCRYPTION_KEY and OAUTH_AUDIT_PEPPER
-docker-compose up -d
-make schema-apply      # NOT migrate-up: cmd/migrate is still a stub
-make run
+cp .env.example .env   # optional in development; required in production
+docker compose up -d   # builds the app and starts postgres, redis and mailhog
 curl http://localhost:8080/.well-known/openid-configuration
 ```
+
+The server applies its embedded migrations on startup, so there is no separate
+migrate step. `cmd/migrate` is a stub; the `make schema-*` targets drive `psql`
+directly and exist to test the SQL in isolation, not to run the application.
+
+In development (`OAUTH_ENV=development`, set by `docker-compose.yml`) the server
+generates ephemeral key material when `OAUTH_KEY_ENCRYPTION_KEY` and
+`OAUTH_AUDIT_PEPPER` are unset, so a fresh checkout boots without any setup.
+Encrypted rows do not survive a restart with generated secrets. Set both to 32
+bytes of hex (`openssl rand -hex 32`) in any real deployment.
 
 ## Security Features
 

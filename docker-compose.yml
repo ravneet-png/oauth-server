@@ -47,11 +47,14 @@ services:
         required: false
     environment:
       OAUTH_ENV: development
+      OAUTH_CONFIG_FILE: /config.yaml
       OAUTH_SERVER_ISSUER: http://localhost:8080
       OAUTH_DATABASE_URL: postgres://oauth:oauth@postgres:5432/oauth?sslmode=disable
       OAUTH_REDIS_URL: redis://redis:6379/0
       OAUTH_EMAIL_SMTP_HOST: mailhog
       OAUTH_EMAIL_SMTP_PORT: "1025"
+    volumes:
+      - ./config.yaml:/config.yaml:ro
     ports:
       - "127.0.0.1:8080:8080"
     restart: unless-stopped
