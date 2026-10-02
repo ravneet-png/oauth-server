@@ -220,7 +220,7 @@ func decodeHash(encodedHash string) (Argon2Params, []byte, []byte, error) {
 
 	salt, err := base64.RawStdEncoding.DecodeString(parts[4])
 	if err != nil {
-		return p, nil, nil, fmt.Errorf("%w: bad salt encoding: %v", ErrInvalidHash, err) // nolint:errorlint
+		return p, nil, nil, fmt.Errorf("%w: bad salt encoding: %w", ErrInvalidHash, err) // nolint:errorlint
 	}
 	sum, err := base64.RawStdEncoding.DecodeString(parts[5])
 	if err != nil {

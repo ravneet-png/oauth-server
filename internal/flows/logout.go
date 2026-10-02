@@ -214,7 +214,7 @@ func LogoutRP(ctx context.Context,
 			if userID != "" && sess.UserID != userID {
 				// A hint belonging to another user must not sign that user out,
 				// and must not be treated as if it authenticated this one.
-				return "", fmt.Errorf("flows: LogoutRP: id_token_hint subject does not match session user")
+				return "", errors.New("flows: LogoutRP: id_token_hint subject does not match session user")
 			}
 			// No assignment here: the session is what scopes the logout below, and
 			// nothing downstream reads a user ID derived from the session. The
@@ -228,11 +228,11 @@ func LogoutRP(ctx context.Context,
 	// an attacker's page still framed as the authorization server.
 	if postLogoutRedirectURI != "" {
 		if clientID == "" {
-			return "", fmt.Errorf("flows: LogoutRP: post_logout_redirect_uri requires a valid id_token_hint")
+			return "", errors.New("flows: LogoutRP: post_logout_redirect_uri requires a valid id_token_hint")
 		}
 		client, clientErr := clientRepo.GetByID(ctx, clientID)
 		if clientErr != nil {
-			return "", fmt.Errorf("flows: LogoutRP: post_logout_redirect_uri client not found")
+			return "", errors.New("flows: LogoutRP: post_logout_redirect_uri client not found")
 		}
 		if !client.PostLogoutRedirectURIAllowed(postLogoutRedirectURI) {
 			return "", fmt.Errorf("flows: LogoutRP: post_logout_redirect_uri not registered for client")

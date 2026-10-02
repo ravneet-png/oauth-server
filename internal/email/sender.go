@@ -192,13 +192,13 @@ func WithLogger(l *slog.Logger) Option {
 // that refuses to start: the accounts exist, and nobody can prove it or recover.
 func NewSender(cfg Config, opts ...Option) (*Sender, error) {
 	if cfg.Host == "" {
-		return nil, fmt.Errorf("email: NewSender: host is empty")
+		return nil, errors.New("email: NewSender: host is empty")
 	}
 	if cfg.Port <= 0 || cfg.Port > 65535 {
 		return nil, fmt.Errorf("email: NewSender: port %d out of range", cfg.Port)
 	}
 	if cfg.FromAddress == "" {
-		return nil, fmt.Errorf("email: NewSender: from address is empty")
+		return nil, errors.New("email: NewSender: from address is empty")
 	}
 	if cfg.Timeout <= 0 {
 		cfg.Timeout = DefaultTimeout
@@ -371,7 +371,7 @@ func (s *Sender) Send(ctx context.Context, data TemplateData) error {
 	var lastErr error
 	for attempt := 1; attempt <= s.cfg.MaxAttempts; attempt++ {
 		if err := ctx.Err(); err != nil {
-			return fmt.Errorf("%w: %v (last error: %v)", ErrDelivery, err, lastErr)
+			return fmt.Errorf("%w: delivery failed (last error: %w)", ErrDelivery, lastErr)
 		}
 		if err := s.transport.Send(ctx, msg); err == nil {
 			return nil
