@@ -30,8 +30,10 @@ services:
 
   mailhog:
     image: mailhog/mailhog:latest
+    # Only the UI is published. The app reaches SMTP over the internal network as
+    # mailhog:1025, so publishing 1025 to the host is unnecessary and collides with
+    # any local mail service already bound to that port.
     ports:
-      - "127.0.0.1:1025:1025"
       - "127.0.0.1:8025:8025"
 
   app:
