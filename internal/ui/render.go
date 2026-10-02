@@ -12,6 +12,7 @@ import (
 	"crypto/rand"
 	"embed"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"html/template"
 	"io"
@@ -48,7 +49,7 @@ type Renderer struct {
 // the middle of an authentication flow, after the user has typed a password.
 func NewRenderer(baseURL string) (*Renderer, error) {
 	if baseURL == "" {
-		return nil, fmt.Errorf("ui: NewRenderer: base URL is empty")
+		return nil, errors.New("ui: NewRenderer: base URL is empty")
 	}
 
 	t, err := template.New("pages").Funcs(templateFuncs()).ParseFS(templateFS, "templates/*.html")
@@ -437,7 +438,7 @@ func MustNonce() string {
 // writes the response itself.
 func RenderPage(w http.ResponseWriter, r *Renderer, page string, status int, data any) error {
 	if r == nil {
-		return fmt.Errorf("ui: RenderPage: renderer is nil")
+		return errors.New("ui: RenderPage: renderer is nil")
 	}
 	return r.Render(w, page, status, data)
 }
