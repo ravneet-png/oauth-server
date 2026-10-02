@@ -5,9 +5,10 @@ services:
       POSTGRES_USER: oauth
       POSTGRES_PASSWORD: oauth
       POSTGRES_DB: oauth
-    # Loopback only. Never expose the database to the LAN.
-    ports:
-      - "127.0.0.1:5432:5432"
+    # No host port by default. The app connects over the internal network as
+    # postgres:5432, and `make psql` uses `docker compose exec`, so publishing
+    # 5432 only collides with a locally-installed Postgres. Re-add
+    # "127.0.0.1:5432:5432" under a ports: key if you need host access.
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -20,8 +21,9 @@ services:
   redis:
     image: redis:7-alpine
     command: ["redis-server", "--appendonly", "no"]
-    ports:
-      - "127.0.0.1:6379:6379"
+    # No host port by default, for the same reason as Postgres. `make redis-cli`
+    # uses `docker compose exec`. Re-add "127.0.0.1:6379:6379" under a ports:
+    # key if you need host access.
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
