@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+<body style="font-family:system-ui,-apple-system,Segoe UI,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.5;color:#111;margin:0;padding:24px">
+<p>New sign-in to your account</p>
+<p>A sign-in to {{.Address}} succeeded from a device or location we have not seen before.</p>
+<ul style="font-size:14px;color:#333">
+{{if .Extra.ip}}<li>Address: {{.Extra.ip}}</li>{{end}}
+{{if .Extra.user_agent}}<li>Agent: {{.Extra.user_agent}}</li>{{end}}
+{{if .Extra.when}}<li>Time: {{.Extra.when}}</li>{{end}}
+</ul>
+<p>If this was you, no action is needed. If it was not, reset your password and review your signed-in devices.</p>
+<p><a href="{{.Link}}" style="display:inline-block;padding:10px 18px;background:#1a56db;color:#fff;text-decoration:none;border-radius:4px">Review your account</a></p>
+<hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0">
+<p style="font-size:12px;color:#777">{{.BaseURL}}</p>
+</body>
+</html>

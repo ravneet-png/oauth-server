@@ -1,0 +1,35 @@
+{{define "register"}}{{template "layout_head" .}}
+<form method="post" action="/register" class="form">
+  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+  {{if .AuthRequestID}}<input type="hidden" name="auth_request_id" value="{{.AuthRequestID}}">{{end}}
+  {{if .ClientID}}<input type="hidden" name="client_id" value="{{.ClientID}}">{{end}}
+
+  <label class="field">
+    <span class="field__label">Email address</span>
+    <input class="field__input" type="email" name="email" value="{{.Email}}"
+           autocomplete="username" inputmode="email" required autofocus>
+  </label>
+
+  <label class="field">
+    <span class="field__label">Display name <span class="field__optional">(optional)</span></span>
+    <input class="field__input" type="text" name="name" autocomplete="name">
+  </label>
+
+  <label class="field">
+    <span class="field__label">Password</span>
+    <input class="field__input" type="password" name="password"
+           autocomplete="new-password" required minlength="{{.MinPasswordLen}}">
+    <span class="field__hint">At least {{.MinPasswordLen}} characters.</span>
+  </label>
+
+  <label class="field">
+    <span class="field__label">Confirm password</span>
+    <input class="field__input" type="password" name="password_confirm"
+           autocomplete="new-password" required>
+  </label>
+
+  <button class="button button--primary" type="submit">Create account</button>
+</form>
+
+<p class="links"><a href="/login">Already have an account? Sign in</a></p>
+{{template "layout_foot" .}}{{end}}

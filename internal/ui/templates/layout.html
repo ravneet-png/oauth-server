@@ -1,0 +1,24 @@
+{{define "layout_head"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}}</title>
+<!-- Assets are served from /assets/ (see httpapi.staticHandler), which strips
+     the prefix and serves the embedded static/ subtree. Linking /static/ instead
+     404s on every page, because nothing is mounted there. -->
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+<main class="card">
+<h1 class="card__title">{{.Title}}</h1>
+{{if .Flash}}<p class="alert alert--info" role="status">{{.Flash}}</p>{{end}}
+{{if .Error}}<p class="alert alert--error" role="alert">{{.Error}}</p>{{end}}
+{{end}}
+
+{{define "layout_foot"}}
+{{if .RequestID}}<p class="card__meta">Reference: {{.RequestID}}</p>{{end}}
+</main>
+</body>
+</html>
+{{end}}

@@ -1,0 +1,27 @@
+# Build artefacts
+bin/
+coverage.out
+*.test
+*.prof
+*.exe
+server
+
+# Secrets. .env.example is tracked; .env is not.
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Migration scratch
+migrations/*.sql.tmp
+
+# NOTE: migrations/*.sql are source and MUST NOT be ignored.

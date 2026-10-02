@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html lang="en">
+<body style="font-family:system-ui,-apple-system,Segoe UI,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.5;color:#111;margin:0;padding:24px">
+<p>Your account has been temporarily locked</p>
+<p>After several unsuccessful sign-in attempts, access to {{.Address}} has been paused.</p>
+{{if .Extra.attempts_remaining}}<p>Sign-in attempts remaining before the lock: {{.Extra.attempts_remaining}}.</p>{{end}}
+<p><a href="{{.Link}}" style="display:inline-block;padding:10px 18px;background:#1a56db;color:#fff;text-decoration:none;border-radius:4px">Reset your password</a></p>
+<p style="font-size:13px;color:#555">The lock clears on its own. If this was not you, reset your password now.</p>
+<hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0">
+<p style="font-size:12px;color:#777">{{.BaseURL}}</p>
+</body>
+</html>

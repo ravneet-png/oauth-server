@@ -1,0 +1,4 @@
+{{define "logged_out"}}{{template "layout_head" .}}
+<p>You have been signed out.</p>
+<p class="links"><a class="button button--primary" href="{{.LoginURL}}">Sign in again</a></p>
+{{template "layout_foot" .}}{{end}}

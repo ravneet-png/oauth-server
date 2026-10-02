@@ -1,0 +1,25 @@
+{{define "mfa_challenge"}}{{template "layout_head" .}}
+<p class="muted">Second factor for <strong>{{.Email}}</strong>.</p>
+
+<form method="post" action="/mfa/challenge" class="form">
+  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+  <input type="hidden" name="pending_id" value="{{.PendingID}}">
+  {{if .AuthRequestID}}<input type="hidden" name="auth_request_id" value="{{.AuthRequestID}}">{{end}}
+
+  {{if .BackupCodesRemaining}}
+  <p class="field__hint">{{.BackupCodesRemaining}} backup {{if eq .BackupCodesRemaining 1}}code{{else}}codes{{end}} remaining.</p>
+  {{end}}
+
+  <label class="field">
+    <span class="field__label">Authentication code</span>
+    <input class="field__input field__input--code" type="text" name="code"
+           inputmode="numeric" autocomplete="one-time-code"
+           pattern="[0-9]*" maxlength="8" required autofocus>
+    <span class="field__hint">The 6-digit code from your authenticator app, or a backup code.</span>
+  </label>
+
+  <button class="button button--primary" type="submit">Verify</button>
+</form>
+
+<p class="links"><a href="/mfa/challenge?pending_id={{.PendingID}}&amp;method=backup_code">Use a backup code instead</a></p>
+{{template "layout_foot" .}}{{end}}

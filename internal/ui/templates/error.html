@@ -1,0 +1,6 @@
+{{define "error"}}{{template "layout_head" .}}
+<p class="muted">The request could not be completed.</p>
+{{if .Code}}<p class="error-code">{{.Code}}</p>{{end}}
+{{if .Description}}<p class="error-description">{{.Description}}</p>{{end}}
+<p class="links"><a href="/login">Back to sign in</a></p>
+{{template "layout_foot" .}}{{end}}

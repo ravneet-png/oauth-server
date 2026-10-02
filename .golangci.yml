@@ -1,0 +1,57 @@
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  enable:
+    - bodyclose
+    - contextcheck
+    - copyloopvar
+    - errcheck
+    - errorlint
+    - gocyclo
+    - gosec
+    - govet
+    - misspell
+    - nilerr
+    - noctx
+    - perfsprint
+    - prealloc
+    - revive
+    - sqlclosecheck
+    - staticcheck
+    - unconvert
+    - unused
+    - usestdlibvars
+  settings:
+    gocyclo:
+      min-complexity: 15
+    gosec:
+      # Deliberately NOT excluded:
+      #   G101 hardcoded credentials  -> catches keys leaking into source
+      #   G401 weak crypto            -> catches md5/sha1 in security paths
+      #   G404 math/rand              -> catches predictable randomness
+      #   G501 blocklisted import     -> catches crypto/md5, crypto/sha1
+      #   G505 blocklisted import     -> catches crypto/sha1
+      #   G601 implicit memory aliasing -> Go <1.22 loopvar bugs
+      includes:
+        - G101
+        - G401
+        - G404
+        - G501
+        - G505
+        - G601
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - gosec
+          - errcheck
+          - dupl
+
+formatters:
+  enable:
+    - gofmt
+    - goimports

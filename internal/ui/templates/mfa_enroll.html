@@ -1,0 +1,41 @@
+{{define "mfa_enroll"}}{{template "layout_head" .}}
+<ol class="steps">
+  <li>
+    <p>Open your authenticator app and add a new account.</p>
+    <p>Scan the QR code, or copy the setup link, or enter the secret by hand.</p>
+  </li>
+  <li>
+    {{if .QRCodeDataURL}}
+    <div class="qr-code">
+      <img src="{{.QRCodeDataURL}}" alt="QR code for TOTP enrollment" width="256" height="256">
+    </div>
+    {{end}}
+    <p><strong>Setup link</strong> &mdash; copy this into your app if it offers a link or QR import:</p>
+    <p class="provisioning" id="provisioning">{{.ProvisioningURI}}</p>
+  </li>
+  <li>
+    <p>If your app asks for the secret only, enter this:</p>
+    <p class="secret">{{.Secret}}</p>
+  </li>
+</ol>
+
+<form method="post" action="/mfa/enroll" class="form">
+  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+  <input type="hidden" name="pending_id" value="{{.PendingID}}">
+  <label class="field">
+    <span class="field__label">Code from your app</span>
+    <input class="field__input field__input--code" type="text" name="code"
+           inputmode="numeric" pattern="[0-9]*" maxlength="6" required autofocus>
+    <span class="field__hint">Enter the current code to confirm the app is working.</span>
+  </label>
+  <button class="button button--primary" type="submit">Enable two-factor authentication</button>
+</form>
+
+<div class="backup-codes">
+  <h2 class="backup-codes__title">Backup codes</h2>
+  <p>Each code works once. They are shown now and never again &mdash; save them somewhere safe.</p>
+  <ul class="backup-codes__list">
+    {{range .BackupCodes}}<li><code>{{.}}</code></li>{{end}}
+  </ul>
+</div>
+{{template "layout_foot" .}}{{end}}

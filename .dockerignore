@@ -1,0 +1,32 @@
+# Keep the build context small and, more importantly, keep secrets out of it.
+# Without this, `COPY . .` puts .git, your local .env and any real keys into
+# both the build cache and the image history.
+
+.git
+.gitignore
+.github
+
+# Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Build artefacts
+bin
+coverage.out
+*.test
+*.prof
+
+# Not needed to compile the server
+test
+docs
+*.md
+!README.md
+docker-compose.yml
+Makefile
+Dockerfile
+.editorconfig

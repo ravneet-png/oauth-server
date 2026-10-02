@@ -1,0 +1,5 @@
+{{define "unauthorized"}}{{template "layout_head" .}}
+{{if .Reason}}<p>{{.Reason}}</p>{{else}}
+<p>You do not have permission to view this page.</p>{{end}}
+<p class="links"><a href="/login">Back to sign in</a></p>
+{{template "layout_foot" .}}{{end}}

@@ -1,0 +1,15 @@
+{{define "verify_email"}}{{template "layout_head" .}}
+{{if .Success}}
+<p class="alert alert--success" role="status">Your email address is confirmed.</p>
+{{if .NextStepURL}}
+<p>You can continue signing in.</p>
+<p class="links"><a class="button button--primary" href="{{.NextStepURL}}">Continue</a></p>
+{{else}}
+<p class="links"><a class="button button--primary" href="{{.LoginURL}}">Sign in</a></p>
+{{end}}
+{{else}}
+<p>The confirmation link is no longer valid.</p>
+<p>It may have expired, already been used, or been superseded by a newer request.</p>
+<p class="links"><a class="button button--primary" href="{{.ResendURL}}">Send a new link</a></p>
+{{end}}
+{{template "layout_foot" .}}{{end}}

@@ -1,0 +1,38 @@
+{{define "login"}}{{template "layout_head" .}}
+{{if .ClientName}}
+<div class="notice">
+  <p><strong>{{.ClientName}}</strong> wants to sign you in.</p>
+  {{if .Scope}}<ul class="scopes">{{range .Scope}}<li>{{.}}</li>{{end}}</ul>{{end}}
+</div>
+{{end}}
+<form method="post" action="/login" class="form" autocomplete="on">
+  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+  {{if .AuthRequestID}}<input type="hidden" name="auth_request_id" value="{{.AuthRequestID}}">{{end}}
+  {{if .ClientID}}<input type="hidden" name="client_id" value="{{.ClientID}}">{{end}}
+
+  <label class="field">
+    <span class="field__label">Email address</span>
+    <input class="field__input" type="email" name="email" value="{{.Email}}"
+           autocomplete="username" inputmode="email" required autofocus>
+  </label>
+
+  <label class="field">
+    <span class="field__label">Password</span>
+    <input class="field__input" type="password" name="password"
+           autocomplete="current-password" required>
+  </label>
+
+  <label class="field field--inline">
+    <input type="checkbox" name="remember" value="1">
+    <span>Keep me signed in on this device</span>
+  </label>
+
+  <button class="button button--primary" type="submit">Sign in</button>
+</form>
+
+<p class="links">
+  <a href="/forgot-password">Forgot your password?</a>
+  <span aria-hidden="true"> &middot; </span>
+  <a href="/register">Create an account</a>
+</p>
+{{template "layout_foot" .}}{{end}}

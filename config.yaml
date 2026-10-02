@@ -1,0 +1,175 @@
+# =============================================================================
+# Configuration
+#
+# This file contains NO SECRETS. No encryption keys, no client secrets, no
+# signing material. Those are read from the environment only; see .env.example.
+#
+# DURATION TYPING: every *_ttl, *_timeout and *_seconds value below is an
+# INTEGER NUMBER OF SECONDS. The corresponding Go fields are `int`, converted
+# explicitly. They must NOT be time.Duration, because viper parses a bare
+# integer into a time.Duration as NANOSECONDS (3600 becomes 3.6 microseconds).
+# =============================================================================
+
+server:
+  host: "0.0.0.0"
+  port: 8080
+  # Must be https:// in any environment other than development. The server
+  # refuses to start otherwise, because an http issuer poisons the `iss` claim
+  # in every relying party.
+  issuer: "http://localhost:8080"
+  # X-Forwarded-For and friends are IGNORED unless the immediate peer is inside
+  # trusted_proxies. Without this, rate limiting is bypassed with one header.
+  trust_proxy_headers: false
+  trusted_proxies: []
+
+database:
+  url: "postgres://oauth:oauth@localhost:5432/oauth?sslmode=disable"
+  max_connections: 25
+  min_connections: 5
+  statement_timeout_ms: 5000
+  connect_timeout_seconds: 10
+
+redis:
+  url: "redis://localhost:6379/0"
+  revocation_ttl_padding_seconds: 60
+  # When Redis is unavailable, refuse token validation rather than silently
+  # allowing a possibly revoked token through.
+  fail_closed_on_introspection: true
+
+tokens:
+  access_ttl: 900
+  # Idle lifetime of a rotated refresh token.
+  refresh_idle_ttl: 2592000
+  # Hard ceiling for a token family regardless of rotation. Without this a
+  # client rotating every 29 days keeps one session alive forever.
+  refresh_absolute_ttl: 7776000
+  client_credentials_ttl: 900
+  id_token_ttl: 900
+  authorization_code_ttl: 600
+  par_ttl: 60
+  auth_request_ttl: 900
+  email_verification_ttl: 86400
+  mfa_pending_ttl: 300
+
+keys:
+  algorithm: "RS256"
+  key_size: 2048
+  rotation_days: 30
+  # Must exceed access_ttl plus clock skew. Derived and validated at boot rather
+  # than trusted, so that raising access_ttl cannot silently invalidate tokens
+  # that are still live.
+  retention_hours: 48
+  clock_skew_seconds: 60
+  # encryption_key is intentionally ABSENT. It comes from
+  # OAUTH_KEY_ENCRYPTION_KEY in the environment.
+
+rate_limit:
+  enabled: true
+  # Redis unavailable => deny. On /authorize and /token this must be true.
+  fail_closed: true
+  login:
+    per_ip: { window_seconds: 60, limit: 5 }
+    per_account: { window_seconds: 3600, limit: 10 }
+  mfa:
+    per_pending: { window_seconds: 60, limit: 3 }
+    # Total attempts across all factors. Exceeding this burns every remaining
+    # backup code, which forces re-enrolment rather than allowing a guessing
+    # loop against a dozen codes.
+    total_attempts: 5
+  token:
+    per_client: { window_seconds: 60, limit: 60 }
+    per_ip_unauthenticated: { window_seconds: 60, limit: 10 }
+  par:
+    per_client: { window_seconds: 60, limit: 60 }
+  register:
+    per_ip: { window_seconds: 3600, limit: 3 }
+  client_register:
+    per_ip: { window_seconds: 3600, limit: 3 }
+
+security:
+  password_min_length: 12
+  argon2:
+    memory_kib: 65536
+    iterations: 3
+    parallelism: 4
+    salt_length: 16
+    key_length: 32
+  # Client secrets and MFA backup codes are 256 bits of CSPRNG output, so a
+  # password KDF buys nothing and costs 100ms of CPU on every /token call.
+  # Passwords use argon2; everything else uses SHA-256.
+  high_entropy_hash: "sha256"
+  # Email addresses appear in audit records as an HMAC-SHA256 under a pepper,
+  # because email addresses are low entropy and a bare SHA-256 is reversible
+  # from any rainbow table.
+  audit_pepper_env: "OAUTH_AUDIT_PEPPER"
+
+  mfa_issuer: "OAuth Server"
+  # 0 disables skew entirely. Replay is prevented by the persisted TOTP counter,
+  # so skew is not needed to defend against a shoulder-surfed code.
+  mfa_skew_steps: 0
+
+  session_idle_timeout: 3600
+  session_absolute_timeout: 86400
+
+  # In production this MUST be "__Host-oauth_session": the prefix makes the
+  # browser enforce Secure, Path=/ and the absence of a Domain attribute, so a
+  # subdomain cannot inject a cookie of the same name for the parent domain and
+  # take the session over. The loader refuses to start otherwise.
+  #
+  # The plain name here is not a shortcut. A browser REJECTS a __Host- cookie
+  # that is not Secure, and a Secure cookie is never sent over plain http, so a
+  # __Host- pair cannot work against this file's http://localhost issuer at all.
+  # Set both together in any real deployment:
+  #     session_cookie_name: "__Host-oauth_session"
+  #     session_cookie_secure: true
+  # Getting only one of them wrong produces an endless /login -> /authorize
+  # redirect loop that reads as a session bug and is not one. The loader enforces
+  # both halves of that pairing.
+  session_cookie_name: "oauth_session"
+  session_cookie_secure: false
+  session_cookie_same_site: "Lax"
+  auth_request_cookie_name: "__Host-oauth_auth_req"
+
+  # DEFENCE IN DEPTH ONLY. The post-login redirect target is always resolved
+  # from a server-side auth_requests row addressed by id. This list is never
+  # used to construct a redirect, only to reject an unexpected one.
+  allowed_internal_paths:
+    - "/authorize"
+    - "/consent"
+    - "/mfa"
+    - "/login"
+    - "/verify-email"
+    - "/logged-out"
+
+registration:
+  # Dynamic client registration (RFC 7591) must be OFF by default. Left open,
+  # it lets anyone mint a client with an attacker-controlled redirect_uri,
+  # which turns the consent screen into a phishing page with your own logo on it.
+  client_registration_enabled: false
+  client_registration_initial_access_token_env: "OAUTH_CLIENT_REGISTRATION_INITIAL_ACCESS_TOKEN"
+
+email:
+  smtp_host: "localhost"
+  smtp_port: 1025
+  smtp_username: ""
+  smtp_password: ""
+  from_address: "noreply@localhost"
+  from_name: "OAuth Server"
+  # Registration, verification and password reset must not reveal whether an
+  # address is already registered, in the body, the status code, or the timing.
+  enumeration_safe_responses: true
+
+backchannel_logout:
+  max_attempts: 3
+  backoff_seconds: [1, 3, 9]
+  timeout_seconds: 5
+  async_queue: true
+
+audit:
+  # Retention is enforced by dropping partitions, not by ad hoc DELETE.
+  # Partition creation and drop is a scheduled job.
+  retain_days: 400
+
+logging:
+  level: "info"
+  format: "json"

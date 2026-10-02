@@ -1,0 +1,55 @@
+{{define "consent"}}{{template "layout_head" .}}
+<div class="notice">
+  <p><strong>{{.ClientName}}</strong> is asking for permission.</p>
+  {{if .ClientURI}}<p class="notice__uri">{{.ClientURI}}</p>{{end}}
+</div>
+
+{{if .PreviouslyGranted}}
+<p class="muted">These are already granted for this application and will not be asked again:</p>
+<ul class="scopes scopes--granted">
+  {{range .PreviouslyGranted}}<li>{{.}}</li>{{end}}
+</ul>
+{{end}}
+
+<form method="post" action="/consent" class="form">
+  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+  <input type="hidden" name="auth_request_id" value="{{.AuthRequestID}}">
+
+  {{if .RequestedScopes}}
+  <fieldset class="fieldset">
+    <legend class="fieldset__legend">This will share</legend>
+    <ul class="scopes">
+      {{range .RequestedScopes}}
+      <li class="scope">
+        <input type="checkbox" id="scope-{{.Name}}" name="scope" value="{{.Name}}" checked>
+        <label class="scope__title" for="scope-{{.Name}}">{{.Title}}</label>
+        {{if .Description}}<span class="scope__description">{{.Description}}</span>{{end}}
+      </li>
+      {{end}}
+    </ul>
+  </fieldset>
+  {{else}}
+  <p class="muted">Nothing new to grant. Continuing will complete the sign-in.</p>
+  {{end}}
+
+  {{if .ExcludedScopes}}
+  <div class="notice notice--warning">
+    <h2 class="notice__title">Not shared</h2>
+    <p class="muted">You asked for access to these, but they will not be granted:</p>
+    <ul class="scopes">
+      {{range .ExcludedScopes}}
+      <li class="scope scope--excluded">
+        <span class="scope__title">{{if .Title}}{{.Title}}{{else}}{{.Name}}{{end}}</span>
+        <span class="scope__description">{{.Reason}}</span>
+      </li>
+      {{end}}
+    </ul>
+  </div>
+  {{end}}
+
+  <div class="button-row">
+    <button class="button button--primary" type="submit" name="decision" value="allow">Allow</button>
+    <button class="button button--secondary" type="submit" name="decision" value="deny">Deny</button>
+  </div>
+</form>
+{{template "layout_foot" .}}{{end}}
