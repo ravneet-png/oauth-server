@@ -4,7 +4,7 @@ coverage.out
 *.test
 *.prof
 *.exe
-server
+/server
 
 # Secrets. .env.example is tracked; .env is not.
 .env
