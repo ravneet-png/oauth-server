@@ -14,7 +14,6 @@ package app
 import (
 	"context"
 	"errors"
-	"os"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -24,21 +23,6 @@ import (
 	"oauth-server/internal/handlers"
 	"oauth-server/internal/storage"
 )
-
-// testDBURLInSchema is the storage-package helper for this file.
-//
-// The reaper is exercised against the isolated integration schema rather than the
-// public one: a sweep is a bulk DELETE across nine tables, and running that against the
-// same schema the storage package is using invites the same truncation race that the
-// schema split was introduced to fix.
-func testDBURLInSchema(t *testing.T) string {
-	t.Helper()
-	base := os.Getenv("TEST_DATABASE_URL")
-	if base == "" {
-		t.Skip("TEST_DATABASE_URL is not set; skipping PostgreSQL-backed test")
-	}
-	return base
-}
 
 // newReaperDeps builds the repository set the Reaper reads through Deps.
 //

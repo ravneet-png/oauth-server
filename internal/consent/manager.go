@@ -21,10 +21,10 @@ type Manager struct {
 // NewManager builds a consent manager.
 func NewManager(consentRepo *storage.ConsentRepo, userRepo *storage.UserRepo) (*Manager, error) {
 	if consentRepo == nil {
-		return nil, fmt.Errorf("consent: NewManager: consentRepo is nil")
+		return nil, errors.New("consent: NewManager: consentRepo is nil")
 	}
 	if userRepo == nil {
-		return nil, fmt.Errorf("consent: NewManager: userRepo is nil")
+		return nil, errors.New("consent: NewManager: userRepo is nil")
 	}
 	return &Manager{
 		consentRepo: consentRepo,
@@ -74,7 +74,7 @@ func (m *Manager) ExplainScopeExclusions(ctx context.Context, userID string, req
 
 func (m *Manager) explainScopeExclusions(ctx context.Context, userID string, requestedScopes, clientAllowedScopes []string) ([]string, []ScopeExclusion, error) {
 	if userID == "" {
-		return nil, nil, fmt.Errorf("consent: FilterGrantableScopes: userID is empty")
+		return nil, nil, errors.New("consent: FilterGrantableScopes: userID is empty")
 	}
 
 	// Get user to check email verification
@@ -115,7 +115,7 @@ func (m *Manager) explainScopeExclusions(ctx context.Context, userID string, req
 // grantableScopes. Used by the authorize flow to auto-skip the consent screen.
 func (m *Manager) HasFullConsent(ctx context.Context, userID, clientID string, grantableScopes []string) (bool, error) {
 	if userID == "" || clientID == "" {
-		return false, fmt.Errorf("consent: HasFullConsent: empty argument")
+		return false, errors.New("consent: HasFullConsent: empty argument")
 	}
 
 	consent, err := m.consentRepo.Get(ctx, userID, clientID)
@@ -143,7 +143,7 @@ func (m *Manager) HasFullConsent(ctx context.Context, userID, clientID string, g
 // user consent should not silently expire.
 func (m *Manager) GrantConsent(ctx context.Context, userID, clientID string, scopes []string) error {
 	if userID == "" || clientID == "" {
-		return fmt.Errorf("consent: GrantConsent: empty argument")
+		return errors.New("consent: GrantConsent: empty argument")
 	}
 
 	now := time.Now().UTC()

@@ -56,7 +56,7 @@ func (d *Dispatcher) Authenticate(ctx context.Context, r *http.Request) (*domain
 	}
 
 	if err := r.ParseForm(); err != nil {
-		return nil, fmt.Errorf("%w: parse form: %v", ErrInvalidClient, err)
+		return nil, fmt.Errorf("%w: parse form: %w", ErrInvalidClient, err)
 	}
 
 	// 1. Authorization: Basic

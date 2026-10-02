@@ -140,25 +140,3 @@ func TestAuthorizationCodeReuseWrongClientInvalidGrantNoCascade(t *testing.T) {
 		t.Error("first client's token was revoked by wrong-client replay; should not cascade")
 	}
 }
-
-// Helper to count rows in revoked_tokens for a specific client
-func countRevokedTokens(t *testing.T, e *env, clientID string) int {
-	var count int
-	err := e.DB.QueryRow(context.Background(),
-		`SELECT count(*) FROM revoked_tokens WHERE client_id = $1`, clientID).Scan(&count)
-	if err != nil {
-		t.Fatalf("count revoked_tokens: %v", err)
-	}
-	return count
-}
-
-// Helper to count rows in refresh_tokens for a specific client
-func countRefreshTokens(t *testing.T, e *env, clientID string) int {
-	var count int
-	err := e.DB.QueryRow(context.Background(),
-		`SELECT count(*) FROM refresh_tokens WHERE client_id = $1`, clientID).Scan(&count)
-	if err != nil {
-		t.Fatalf("count refresh_tokens: %v", err)
-	}
-	return count
-}

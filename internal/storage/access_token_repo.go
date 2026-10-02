@@ -22,6 +22,7 @@ func NewAccessTokenRepo(pool *pgxpool.Pool) *AccessTokenRepo {
 	return &AccessTokenRepo{pool: pool}
 }
 
+// nolint:gosec // G101 matches on the word "token"; these are column names.
 const accessTokenColumns = `
 	jti, user_id, client_id, session_id, source_auth_code_hash,
 	scope, issued_at, expires_at`

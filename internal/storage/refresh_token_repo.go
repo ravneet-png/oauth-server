@@ -25,6 +25,7 @@ func NewRefreshTokenRepo(pool *pgxpool.Pool) *RefreshTokenRepo {
 	return &RefreshTokenRepo{pool: pool}
 }
 
+// nolint:gosec // G101 matches on the word "token"; these are column names.
 const refreshTokenColumns = `
 	token_hash, family_id, client_id, user_id, session_id,
 	source_auth_code_hash, replaced_by_hash,

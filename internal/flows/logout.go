@@ -6,6 +6,7 @@ package flows
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"time"
@@ -188,21 +189,21 @@ func LogoutRP(ctx context.Context,
 	// identifies the client for the redirect check below.
 	if idTokenHint != "" {
 		if verifier == nil {
-			return "", fmt.Errorf("flows: LogoutRP: no verifier configured")
+			return "", errors.New("flows: LogoutRP: no verifier configured")
 		}
 		tok, verifyErr := verifier.Verify(ctx, idTokenHint, tokens.TypeJWT)
 		if verifyErr != nil {
 			// Refused rather than ignored. Falling back to session-only would let
 			// an attacker attach any garbage as a hint and still receive a
 			// validated redirect, and would silently accept a replayed ID token.
-			return "", fmt.Errorf("flows: LogoutRP: id_token_hint did not verify")
+			return "", errors.New("flows: LogoutRP: id_token_hint did not verify")
 		}
 		userID = tok.Subject()
 		if len(tok.Audience()) > 0 {
 			clientID = tok.Audience()[0]
 		}
 		if clientID == "" {
-			return "", fmt.Errorf("flows: LogoutRP: id_token_hint has no audience")
+			return "", errors.New("flows: LogoutRP: id_token_hint has no audience")
 		}
 	}
 
@@ -215,7 +216,9 @@ func LogoutRP(ctx context.Context,
 				// and must not be treated as if it authenticated this one.
 				return "", fmt.Errorf("flows: LogoutRP: id_token_hint subject does not match session user")
 			}
-			userID = sess.UserID
+			// No assignment here: the session is what scopes the logout below, and
+			// nothing downstream reads a user ID derived from the session. The
+			// comparison above is the whole point of the lookup.
 		}
 	}
 

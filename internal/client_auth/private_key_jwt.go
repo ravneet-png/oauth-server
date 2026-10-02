@@ -104,7 +104,7 @@ func (a *PrivateKeyJWTAuthenticator) Authenticate(ctx context.Context, r *http.R
 	}
 
 	if err := r.ParseForm(); err != nil {
-		return nil, fmt.Errorf("%w: parse form: %v", ErrInvalidClient, err)
+		return nil, fmt.Errorf("%w: parse form: %w", ErrInvalidClient, err)
 	}
 
 	assertionType := r.Form.Get("client_assertion_type")
@@ -127,7 +127,7 @@ func (a *PrivateKeyJWTAuthenticator) Authenticate(ctx context.Context, r *http.R
 	// from this unverified parse safe in the first place.
 	tok, err := jwt.Parse([]byte(assertion), jwt.WithVerify(false))
 	if err != nil {
-		return nil, fmt.Errorf("%w: parse assertion: %v", ErrInvalidClient, err)
+		return nil, fmt.Errorf("%w: parse assertion: %w", ErrInvalidClient, err)
 	}
 
 	clientID := tok.Issuer()
@@ -201,14 +201,14 @@ func parseJWKSet(raw []byte) (jwk.Set, error) {
 	if k, err := jwk.ParseKey(raw); err == nil {
 		set := jwk.NewSet()
 		if err := set.AddKey(k); err != nil {
-			return nil, fmt.Errorf("%w: client JWKSet is unreadable: %v", ErrInvalidClient, err)
+			return nil, fmt.Errorf("%w: client JWKSet is unreadable: %w", ErrInvalidClient, err)
 		}
 		return set, nil
 	}
 
 	set, err := jwk.Parse(raw)
 	if err != nil {
-		return nil, fmt.Errorf("%w: parse client JWKSet: %v", ErrInvalidClient, err)
+		return nil, fmt.Errorf("%w: parse client JWKSet: %w", ErrInvalidClient, err)
 	}
 	if set.Len() == 0 {
 		return nil, fmt.Errorf("%w: client JWKSet contains no keys", ErrInvalidClient)
@@ -252,7 +252,7 @@ func (a *PrivateKeyJWTAuthenticator) fetchJWKS(ctx context.Context, uri string) 
 	if err != nil {
 		return nil, fmt.Errorf("%w: fetch jwks_uri", ErrInvalidClient)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("%w: jwks_uri returned %d", ErrInvalidClient, resp.StatusCode)
@@ -300,7 +300,7 @@ func (a *PrivateKeyJWTAuthenticator) verifyAssertion(ctx context.Context, assert
 		jwt.WithValidate(true),
 	)
 	if err != nil {
-		return fmt.Errorf("%w: verify assertion: %v", ErrInvalidClient, err)
+		return fmt.Errorf("%w: verify assertion: %w", ErrInvalidClient, err)
 	}
 
 	// Standard claims. Verified above by WithValidate, re-checked here explicitly
@@ -338,10 +338,10 @@ func (a *PrivateKeyJWTAuthenticator) verifyAssertion(ctx context.Context, assert
 		// Use revoked token cache for jti replay prevention (SET NX with TTL)
 		added, err := a.revCache.AddJTI(ctx, jti, 10*time.Minute)
 		if err != nil {
-			return fmt.Errorf("%w: replay check failed: %v", ErrInvalidClient, err)
+			return fmt.Errorf("%w: replay check failed: %w", ErrInvalidClient, err)
 		}
 		if !added {
-			return fmt.Errorf("%w: %v", ErrInvalidClient, ErrReplayDetected)
+			return fmt.Errorf("%w: %w", ErrInvalidClient, ErrReplayDetected)
 		}
 	}
 

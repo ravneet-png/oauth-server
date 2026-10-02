@@ -23,6 +23,7 @@ func NewTokenFamilyRepo(pool *pgxpool.Pool) *TokenFamilyRepo {
 	return &TokenFamilyRepo{pool: pool}
 }
 
+// nolint:gosec // G101 matches on the word "token"; these are column names.
 const tokenFamilyColumns = `
 	family_id, user_id, client_id, source_auth_code_hash,
 	absolute_expires_at, revoked_at, revocation_reason, created_at`

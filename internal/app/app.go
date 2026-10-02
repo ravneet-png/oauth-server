@@ -4,6 +4,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -121,7 +122,7 @@ func New(ctx context.Context, opts Options) (*App, error) {
 		return nil, fmt.Errorf("app: keys.Manager: %w", err)
 	}
 	if _, err := keyManager.LoadActive(ctx); err != nil {
-		if err != keys.ErrNoActiveKey {
+		if !errors.Is(err, keys.ErrNoActiveKey) {
 			return nil, fmt.Errorf("app: load active signing key: %w", err)
 		}
 		log.Info("no active signing key, generating the first one")

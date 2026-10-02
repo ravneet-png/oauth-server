@@ -242,9 +242,6 @@ func (st reqState) auditRC() audit.RequestContext {
 	}
 }
 
-// user returns the session's user id, or "".
-func (st reqState) user() string { return st.userID }
-
 // hasSession reports whether a valid session was resolved.
 func (st reqState) hasSession() bool { return st.sessionID != "" && st.userID != "" }
 

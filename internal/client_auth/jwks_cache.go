@@ -87,16 +87,6 @@ func (c *jwksCache) put(clientID string, set jwk.Set) {
 	c.entries[clientID] = jwksCacheEntry{set: set, fetchedAt: c.now()}
 }
 
-// invalidate drops the cached key set for clientID.
-func (c *jwksCache) invalidate(clientID string) {
-	if c == nil {
-		return
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	delete(c.entries, clientID)
-}
-
 // singleflight prevents a thundering herd.
 //
 // Without it, N concurrent token requests for a cold client each see a cache miss and

@@ -377,7 +377,7 @@ func nonceOf(data any) string {
 // Every page type embeds Base, so the case list would be redundant if not for the
 // pointer forms; the single nil-safe check covers those.
 func correlationID(data any) string {
-	if v := reflect.ValueOf(data); v.Kind() == reflect.Ptr && v.IsNil() {
+	if v := reflect.ValueOf(data); v.Kind() == reflect.Pointer && v.IsNil() {
 		return ""
 	}
 	switch d := data.(type) {

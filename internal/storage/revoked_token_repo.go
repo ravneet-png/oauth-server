@@ -23,6 +23,7 @@ func NewRevokedTokenRepo(pool *pgxpool.Pool) *RevokedTokenRepo {
 	return &RevokedTokenRepo{pool: pool}
 }
 
+// nolint:gosec // G101 matches on the word "token"; these are column names.
 const revokedTokenColumns = `jti, expires_at, reason, revoked_at`
 
 func scanRevokedToken(row interface{ Scan(...any) error }) (*domain.RevokedToken, error) {

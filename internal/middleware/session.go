@@ -152,7 +152,8 @@ func RequireSession(loginPath string) func(http.Handler) http.Handler {
 					w.Header().Set("Cache-Control", "no-store")
 					w.Header().Set("Pragma", "no-cache")
 					w.WriteHeader(http.StatusUnauthorized)
-					fmt.Fprintf(w, `{"error":"invalid_token","error_description":"session required"}`)
+					// Status is already committed, so a write failure cannot be reported.
+					_, _ = fmt.Fprintf(w, `{"error":"invalid_token","error_description":"session required"}`)
 					return
 				}
 

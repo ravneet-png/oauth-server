@@ -12,6 +12,8 @@ package crypto
 
 import (
 	"crypto/hmac"
+	// nolint:gosec // G505: RFC 6238 defines TOTP over HMAC-SHA1. It is a MAC, not
+	// a collision-resistant digest, and this import is not a hashing choice.
 	"crypto/sha1"
 	"crypto/subtle"
 	"encoding/base32"
@@ -179,7 +181,7 @@ func TOTPCode(p TOTPParams, t time.Time) (string, error) {
 	}
 	code, err := totp.GenerateCodeCustom(p.Secret, t, totp.ValidateOpts{
 		Period:    period,
-		Skew:      uint(p.Skew),
+		Skew:      p.Skew,
 		Digits:    p.Digits,
 		Algorithm: otp.AlgorithmSHA1,
 	})

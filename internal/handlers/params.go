@@ -8,7 +8,6 @@ package handlers
 
 import (
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 
@@ -98,29 +97,6 @@ func stringParamPresent(r *http.Request, name string) (value string, present boo
 	return "", false
 }
 
-// intParam reads a bounded integer from the form or query.
-//
-// Out of range, unparseable and absent all return def. A negative return is impossible
-// because minValue is at least zero at every call site: a caller computing an expiry
-// from this must never be handed a time in the past by a request that said -1.
-func intParam(r *http.Request, name string, def, minValue, maxValue int) int {
-	raw := stringParam(r, name)
-	if raw == "" {
-		return def
-	}
-	n, err := strconv.Atoi(raw)
-	if err != nil {
-		return def
-	}
-	if n < minValue {
-		return minValue
-	}
-	if n > maxValue {
-		return maxValue
-	}
-	return n
-}
-
 // scopes splits a space-delimited scope parameter.
 //
 // Parsed rather than passed as a string because every downstream check is set-valued:
@@ -133,25 +109,6 @@ func scopes(raw string) []string {
 		return nil
 	}
 	return strings.Fields(raw)
-}
-
-// firstURLParam returns the first value of a repeated query parameter, and whether the
-// parameter was present.
-//
-// Only for parameters that may legitimately appear in both the query and the form,
-// where the handler has already established which source wins.
-func firstURLParam(r *http.Request, name string) (string, bool) {
-	values, ok := r.URL.Query()[name]
-	if !ok || len(values) == 0 {
-		return "", false
-	}
-	return values[0], true
-}
-
-// queryHas reports whether a query parameter was present, regardless of value.
-func queryHas(r *http.Request, name string) bool {
-	_, ok := r.URL.Query()[name]
-	return ok
 }
 
 // optionalParam returns a pointer to the parameter's value when it was present, and nil
@@ -199,19 +156,3 @@ func secureEqual(a, b string) bool {
 	}
 	return crypto.VerifySHA256Hex(a, crypto.SHA256Hex(b))
 }
-
-// joinScopes renders a scope set for display in an error description.
-func joinScopes(s []string) string { return strings.Join(s, " ") }
-
-// contains reports whether a set contains a value.
-func contains(set []string, want string) bool {
-	for _, v := range set {
-		if v == want {
-			return true
-		}
-	}
-	return false
-}
-
-// urlValues is a small alias so handler code reads as one concept.
-type urlValues = url.Values

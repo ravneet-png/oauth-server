@@ -71,7 +71,9 @@ func writeOAuthError(w http.ResponseWriter, oe *domain.OAuthError) {
 	w.Header().Set("Pragma", "no-cache")
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(oe.HTTPStatus)
-	json.NewEncoder(w).Encode(map[string]string{
+	// Encode error is not actionable: the status line is already committed and the
+	// body is a fixed, small map that cannot fail to marshal.
+	_ = json.NewEncoder(w).Encode(map[string]string{
 		"error":             oe.Code,
 		"error_description": oe.Description,
 		"error_uri":         oe.URI,

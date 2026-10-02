@@ -31,8 +31,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"net/netip"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -197,37 +197,10 @@ func jsonOrNil(raw []byte) *string {
 	return &s
 }
 
-// affectedRows converts a command tag to an int, returning -1 for a statement
-// that reports no count. Callers that need the count check for -1 rather than
-// treating it as zero, so a future SQLMODE that stops reporting rows cannot
-// silently read as "nothing matched, all good".
-func affectedRows(tag pgconn.CommandTag) int {
-	n := tag.RowsAffected()
-	if n < 0 || n > math.MaxInt32 {
-		return -1
-	}
-	return int(n)
-}
-
-// nullString converts a nullable string column to the pointer form the domain
-// uses. The domain distinguishes "absent" from "empty" throughout, so this
-// conversion appears on every nullable text column and getting it wrong on one
-// turns a NULL into a pointer-to-empty-string, which reads as a present value.
-func nullString(s *string) *string { return s }
-
 // stringPtr is the inverse, for the many columns that are written as parameters.
 // Taking a pointer to a parameter is a copy, so callers can pass a loop
 // variable's address safely.
 func stringPtr(s string) *string { return &s }
-
-// timePtr returns a pointer to t, or nil for the zero time, which is how the
-// domain spells "no expiry" and "not yet".
-func timePtr(t time.Time) *time.Time {
-	if t.IsZero() {
-		return nil
-	}
-	return &t
-}
 
 // scanStrings is a helper for reading TEXT[] into []string, tolerating a NULL
 // column as an empty slice.
@@ -298,14 +271,14 @@ const reaperBatch = 1000
 // formatOp builds a consistent operation label for error messages, so a log line
 // identifies the statement rather than the method that ran it.
 func formatOp(parts ...string) string {
-	out := ""
+	var b strings.Builder
 	for i, p := range parts {
 		if i > 0 {
-			out += "."
+			b.WriteByte('.')
 		}
-		out += p
+		b.WriteString(p)
 	}
-	return out
+	return b.String()
 }
 
 // ensure fmt is referenced even if every helper above stops using it, which

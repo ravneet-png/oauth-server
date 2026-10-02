@@ -3,7 +3,7 @@
 # ---------------------------------------------------------------------------
 # Build stage
 # ---------------------------------------------------------------------------
-FROM golang:1.22-alpine AS build
+FROM golang:1.26-alpine AS build
 
 # distroless/static has no libc, so every invocation must be cgo-free.
 ENV CGO_ENABLED=0 \

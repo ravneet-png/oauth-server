@@ -571,8 +571,9 @@ func TestKeyIsInjective(t *testing.T) {
 // makes a rate limit counter a counter rather than a series of unrelated keys.
 func TestKeyIsStable(t *testing.T) {
 	c := testClient(t)
-	if c.Key("a", "b", "c") != c.Key("a", "b", "c") {
-		t.Error("Key is not deterministic")
+	first := c.Key("a", "b", "c")
+	if second := c.Key("a", "b", "c"); first != second {
+		t.Errorf("Key is not deterministic: %q then %q", first, second)
 	}
 }
 

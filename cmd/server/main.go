@@ -88,9 +88,15 @@ func main() {
 		// exceed the server WriteTimeout (60s) only if slow responses are expected;
 		// here it is deliberately shorter than ReadTimeout so a stuck client cannot
 		// prevent a clean exit, and matches the deployment's orchestrator grace period.
+		// Background, not the signal-detached request context: Shutdown must still
+		// receive a deadline even if the context that triggered the signal was
+		// already cancelled.
+		// A fresh context is required here, not one inherited from the signal
+		// handler: that one is already cancelled, and Shutdown needs a live
+		// deadline to drain against.
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		if err := srv.Shutdown(shutdownCtx); err != nil {
+		if err := srv.Shutdown(shutdownCtx); err != nil { //nolint:contextcheck // deliberate fresh context
 			logger.Error("HTTP shutdown", "error", err)
 		}
 	}()

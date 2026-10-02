@@ -11,7 +11,6 @@ package httpapi
 
 import (
 	"net/http"
-	"strings"
 	"time"
 
 	"oauth-server/internal/ui"
@@ -330,17 +329,6 @@ func staticHandler() http.Handler {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		fileServer.ServeHTTP(w, req)
 	})
-}
-
-// cleanPath normalises a request path for routing decisions.
-func cleanPath(p string) string {
-	if i := strings.IndexByte(p, '?'); i >= 0 {
-		p = p[:i]
-	}
-	if p == "" {
-		return "/"
-	}
-	return p
 }
 
 // defaultTimeout is the per-request budget applied by the server, not the router.

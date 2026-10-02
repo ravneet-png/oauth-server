@@ -155,7 +155,8 @@ func (rl *RateLimiter) Limit(keyPrefix string, max int, windowSec int, keyFn fun
 				w.Header().Set("Pragma", "no-cache")
 				w.WriteHeader(http.StatusTooManyRequests)
 				// OAuth 2.1 error format
-				fmt.Fprintf(w, `{"error":"temporarily_unavailable","error_description":"rate limit exceeded","error_uri":"https://tools.ietf.org/html/rfc6749#section-5.2"}`)
+				// Status is already committed, so a write failure cannot be reported.
+				_, _ = fmt.Fprintf(w, `{"error":"temporarily_unavailable","error_description":"rate limit exceeded","error_uri":"https://tools.ietf.org/html/rfc6749#section-5.2"}`)
 				return
 			}
 

@@ -23,7 +23,10 @@ func TestGuardedClientRejectsLoopback(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	c := guardedClient(500 * time.Millisecond)
-	_, err := c.Get(srv.URL)
+	resp, err := c.Get(srv.URL)
+	if resp != nil {
+		t.Cleanup(func() { _ = resp.Body.Close() })
+	}
 	if err == nil {
 		t.Fatal("guardedClient allowed loopback fetch")
 	}

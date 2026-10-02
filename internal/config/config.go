@@ -344,7 +344,8 @@ func LoadSecrets(cfg *Config, env []string) (Secrets, error) {
 
 	tokenEnv := cfg.Registration.ClientRegistrationInitialAccessTokenEnv
 	if tokenEnv == "" {
-		tokenEnv = "OAUTH_CLIENT_REGISTRATION_INITIAL_ACCESS_TOKEN"
+		// A variable NAME, not a credential.
+		tokenEnv = "OAUTH_CLIENT_REGISTRATION_INITIAL_ACCESS_TOKEN" // nolint:gosec // G101
 	}
 	s.ClientRegistrationInitialAccessToken = firstNonEmptyEnv(env, tokenEnv, "")
 

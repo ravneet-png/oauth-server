@@ -10,6 +10,7 @@ package tokens
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"oauth-server/internal/keys"
@@ -37,7 +38,7 @@ type jwksDocument struct {
 // returning 500 makes every token unverifiable at once and hides the cause.
 func BuildJWKSResponse(ctx context.Context, mgr *keys.Manager) ([]byte, error) {
 	if mgr == nil {
-		return nil, fmt.Errorf("tokens: BuildJWKSResponse: key manager is nil")
+		return nil, errors.New("tokens: BuildJWKSResponse: key manager is nil")
 	}
 
 	set, err := mgr.GetJWKS(ctx)

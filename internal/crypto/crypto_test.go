@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"strconv"
 	"strings"
 	"testing"
@@ -1332,7 +1333,7 @@ func TestVerifyTOTPMalformedSecretIsAnError(t *testing.T) {
 	if err == nil {
 		t.Fatal("VerifyTOTP with a malformed secret = nil, want an error")
 	}
-	if err == ErrTOTPInvalid {
+	if errors.Is(err, ErrTOTPInvalid) {
 		t.Error("a malformed secret reported as ErrTOTPInvalid, which would tell the user their authenticator is wrong")
 	}
 }

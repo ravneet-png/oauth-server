@@ -51,10 +51,10 @@ type Verifier struct {
 // NewVerifier builds a Verifier.
 func NewVerifier(userRepo *storage.UserRepo, mfaRepo *storage.MFARepo) (*Verifier, error) {
 	if userRepo == nil {
-		return nil, fmt.Errorf("authn: NewVerifier: userRepo is nil")
+		return nil, errors.New("authn: NewVerifier: userRepo is nil")
 	}
 	if mfaRepo == nil {
-		return nil, fmt.Errorf("authn: NewVerifier: mfaRepo is nil")
+		return nil, errors.New("authn: NewVerifier: mfaRepo is nil")
 	}
 	return &Verifier{
 		userRepo:     userRepo,

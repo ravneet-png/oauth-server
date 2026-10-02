@@ -1279,7 +1279,7 @@ func TestRefreshTokenRepoRevokeAllForUser(t *testing.T) {
 	// A single user with tokens across two different clients, since the index is
 	// not client-scoped and that must not change the answer.
 	clientIDs := []string{uniqueID(t, "rtc1"), uniqueID(t, "rtc2")}
-	var hashes []string
+	hashes := make([]string, 0, len(clientIDs))
 	for _, cid := range clientIDs {
 		mustCreateClient(t, pool, newTestClient(t, cid))
 		h := uniqueID(t, "rttok")

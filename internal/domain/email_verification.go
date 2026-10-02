@@ -94,5 +94,5 @@ func (v *EmailVerification) AttemptsRemaining(limit int) int {
 // doing it again costs nothing and removes the dependency on caller
 // discipline.
 func (v *EmailVerification) CoversAddress(target string) bool {
-	return strings.ToLower(v.TargetEmail) == strings.ToLower(target)
+	return strings.EqualFold(v.TargetEmail, target)
 }

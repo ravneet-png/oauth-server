@@ -50,8 +50,10 @@ func (t *smtpTransport) Send(ctx context.Context, msg *Message) error {
 	// Marked machine-generated so a mail client threading a reply to a verification
 	// notice does not send it back to us, and so spam heuristics that discount
 	// automated mail do not treat these as unsolicited.
-	m.SetHeader("Auto-Submitted", "auto-generated")
-	m.SetHeader("X-Auto-Response-Suppress", "All")
+	// SetGenHeader, not the deprecated SetHeader: these are general headers, not
+	// address headers.
+	m.SetGenHeader("Auto-Submitted", "auto-generated")
+	m.SetGenHeader("X-Auto-Response-Suppress", "All")
 
 	// Order matters: SetBodyString establishes the first part, AddAlternativeString
 	// adds a further one with increasing precedence, so HTML last is what a capable

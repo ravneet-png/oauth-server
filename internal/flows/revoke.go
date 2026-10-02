@@ -61,8 +61,9 @@ func RevokeToken(ctx context.Context,
 	tok, err := verifier.Verify(ctx, token, tokens.TypeJWT)
 	if err != nil {
 		// Unverifiable: it is either not a token of ours, or a forged one.
-		// Either way there is nothing to revoke.
-		return nil
+		// Either way there is nothing to revoke. RFC 7009 requires 200 either
+		// way, so the error is deliberately swallowed here.
+		return nil // nolint:nilerr // Required by RFC 7009.
 	}
 
 	tokenClientID, _ := tok.Get("client_id")
@@ -88,16 +89,4 @@ func RevokeToken(ctx context.Context,
 	}
 
 	return revokedTokenRepo.Add(ctx, jti, exp)
-}
-
-// containsDot reports whether s contains a period, which is the cheapest
-// available signal that a value might be a compact JWS. It is a hint, never a
-// decision: whether the value is a real token of ours is settled by the verifier.
-func containsDot(s string) bool {
-	for i := 0; i < len(s); i++ {
-		if s[i] == '.' {
-			return true
-		}
-	}
-	return false
 }

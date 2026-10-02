@@ -100,7 +100,7 @@ type Authenticator struct {
 // NewAuthenticator builds an Authenticator.
 func NewAuthenticator(userRepo *storage.UserRepo, params crypto.Argon2Params) (*Authenticator, error) {
 	if userRepo == nil {
-		return nil, fmt.Errorf("authn: NewAuthenticator: userRepo is nil")
+		return nil, errors.New("authn: NewAuthenticator: userRepo is nil")
 	}
 	if err := params.Validate(); err != nil {
 		return nil, fmt.Errorf("authn: NewAuthenticator: %w", err)

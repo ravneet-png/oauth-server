@@ -24,7 +24,11 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v8
         with:
-          version: v2.1.6
+          # Must be built with a Go toolchain >= the version in go.mod, or it
+          # refuses to load the config ("the Go language version used to build
+          # golangci-lint is lower than the targeted Go version"). v2.1.6 is
+          # built with go1.24 and cannot lint this module.
+          version: v2.12
 
   vet:
     runs-on: ubuntu-latest

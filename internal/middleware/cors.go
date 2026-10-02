@@ -4,7 +4,6 @@ package middleware
 
 import (
 	"net/http"
-	"strings"
 )
 
 // CorsPolicy is a named CORS configuration.
@@ -44,7 +43,6 @@ func CORSFor(policy CorsPolicy, clientOrigins func(*http.Request) []string) func
 				return
 			}
 
-			allowed := false
 			var allowOrigin string
 			var allowMethods string
 			var allowHeaders string
@@ -54,20 +52,20 @@ func CORSFor(policy CorsPolicy, clientOrigins func(*http.Request) []string) func
 				allowOrigin = "*"
 				allowMethods = "GET, OPTIONS"
 				allowHeaders = ""
-				allowed = true
 
 			case PolicyOAuth:
 				// Origins come from registered client redirect_uris, resolved per-request
 				// so that a newly registered client works immediately without reload.
 				origins := clientOrigins(r)
+				matched := false
 				for _, o := range origins {
 					if o == origin {
-						allowed = true
+						matched = true
 						allowOrigin = origin
 						break
 					}
 				}
-				if !allowed {
+				if !matched {
 					next.ServeHTTP(w, r)
 					return
 				}
@@ -102,24 +100,4 @@ func CORSFor(policy CorsPolicy, clientOrigins func(*http.Request) []string) func
 			next.ServeHTTP(w, r)
 		})
 	}
-}
-
-// clientOriginsFromRedirectURIs extracts origins from the given redirect URIs.
-// Used by the OAuth policy to build the allowed-origins list from registered clients.
-func clientOriginsFromRedirectURIs(uris []string) []string {
-	seen := make(map[string]struct{})
-	var out []string
-	for _, u := range uris {
-		if idx := strings.Index(u, "://"); idx >= 0 {
-			rest := u[idx+3:]
-			if slash := strings.Index(rest, "/"); slash >= 0 {
-				rest = rest[:slash]
-			}
-			if _, ok := seen[rest]; !ok {
-				seen[rest] = struct{}{}
-				out = append(out, rest)
-			}
-		}
-	}
-	return out
 }

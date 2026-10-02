@@ -460,7 +460,7 @@ func plainText(data TemplateData) string {
 	if link == "" || link == data.BaseURL {
 		return ""
 	}
-	return fmt.Sprintf("%s\n\nIf you did not request this, you can ignore this message.", link)
+	return link + "\n\nIf you did not request this, you can ignore this message."
 }
 
 // hashToken returns the stored form of a raw token.

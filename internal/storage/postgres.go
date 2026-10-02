@@ -27,6 +27,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -120,7 +121,7 @@ func NewPool(ctx context.Context, cfg Config) (*Pool, error) {
 		// it per session via AfterConnect would work too, but this way it is
 		// part of the parsed config and is visible in logs and to the pooler.
 		poolCfg.ConnConfig.RuntimeParams["statement_timeout"] =
-			fmt.Sprintf("%d", cfg.StatementTimeout.Milliseconds())
+			strconv.FormatInt(cfg.StatementTimeout.Milliseconds(), 10)
 	}
 
 	// See the package comment: this is what makes a pooler safe in front.
@@ -172,7 +173,9 @@ func RunMigrations(ctx context.Context, dbURL string) error {
 	if err != nil {
 		return fmt.Errorf("storage: open embedded migrations: %w", err)
 	}
-	defer source.Close()
+	// Close errors on the embedded migration source are not actionable: the
+	// migration outcome is decided by m.Up below.
+	defer func() { _ = source.Close() }()
 
 	// golang-migrate selects a database driver by the SCHEME of the URL it is
 	// given, but the pgx/v5 driver is registered under the name "pgx5" and
@@ -191,7 +194,7 @@ func RunMigrations(ctx context.Context, dbURL string) error {
 	if err != nil {
 		return fmt.Errorf("storage: migration driver: %w", err)
 	}
-	defer m.Close()
+	defer func() { _, _ = m.Close() }()
 
 	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 		return fmt.Errorf("storage: migrate up: %w", err)

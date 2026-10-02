@@ -25,6 +25,8 @@ func RecoverMiddlewareWithLogger(log *slog.Logger) func(http.Handler) http.Handl
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// nolint:contextcheck // A deferred recovery closure reads the request's
+			// context for the correlation id; it takes no parameters by construction.
 			defer func() {
 				rec := recover()
 				if rec == nil {

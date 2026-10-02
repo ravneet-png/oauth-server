@@ -104,7 +104,7 @@ func (s *Sender) Deliver(ctx context.Context, endpoint, logoutToken string) erro
 		return fmt.Errorf("%w: no logout token", ErrDeliveryFailed)
 	}
 	if _, err := url.Parse(endpoint); err != nil {
-		return fmt.Errorf("%w: unparseable endpoint: %v", ErrDeliveryFailed, err)
+		return fmt.Errorf("%w: unparseable endpoint: %w", ErrDeliveryFailed, err)
 	}
 
 	form := url.Values{"logout_token": {logoutToken}}
@@ -117,7 +117,7 @@ func (s *Sender) Deliver(ctx context.Context, endpoint, logoutToken string) erro
 		if attempt > 1 {
 			select {
 			case <-ctx.Done():
-				return fmt.Errorf("%w: %v (last error: %w)", ErrDeliveryFailed, ctx.Err(), lastErr)
+				return fmt.Errorf("%w: %w (last error: %w)", ErrDeliveryFailed, ctx.Err(), lastErr)
 			case <-time.After(backoff):
 			}
 			backoff *= 2
@@ -140,7 +140,9 @@ func (s *Sender) Deliver(ctx context.Context, endpoint, logoutToken string) erro
 		// connection unusable, so the next attempt opens a new one and the retry
 		// loop pays for a fresh TCP and TLS handshake every time.
 		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		resp.Body.Close()
+		// Close error is not actionable: the delivery outcome is decided by the
+		// status code below, not by whether the socket shut down cleanly.
+		_ = resp.Body.Close()
 
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 			return nil

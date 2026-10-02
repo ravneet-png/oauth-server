@@ -99,7 +99,9 @@ func (c *CSRFMiddleware) Protect(next http.Handler) http.Handler {
 			w.Header().Set("Cache-Control", "no-store")
 			w.Header().Set("Pragma", "no-cache")
 			w.WriteHeader(http.StatusForbidden)
-			fmt.Fprintf(w, `{"error":"access_denied","error_description":"invalid CSRF token"}`)
+			// The status line is already committed, so a write failure here cannot be
+			// reported to the client and must not change control flow.
+			_, _ = fmt.Fprintf(w, `{"error":"access_denied","error_description":"invalid CSRF token"}`)
 			return
 		}
 

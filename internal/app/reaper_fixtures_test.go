@@ -10,6 +10,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -156,7 +157,7 @@ func sessionExists(t *testing.T, raw *pgxpool.Pool, sessionID string) bool {
 	if err == nil {
 		return true
 	}
-	if err == pgx.ErrNoRows {
+	if errors.Is(err, pgx.ErrNoRows) {
 		return false
 	}
 	t.Fatalf("check session: %v", err)

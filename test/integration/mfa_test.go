@@ -57,6 +57,7 @@ func TestMFAEnrollRequiresSessionCookieNotBearer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("bearer request: %v", err)
 	}
+	defer func() { _ = bearerResp.Body.Close() }()
 
 	// Without a session cookie, the handler should redirect to /login (303)
 	if bearerResp.StatusCode != http.StatusSeeOther {

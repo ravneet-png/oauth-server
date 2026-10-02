@@ -82,7 +82,7 @@ func ensureTestSchema(ctx context.Context) error {
 	}
 	defer func() { _ = conn.Close(ctx) }()
 
-	_, err = conn.Exec(ctx, fmt.Sprintf("CREATE SCHEMA IF NOT EXISTS %s", pgx.Identifier{testSchema}.Sanitize()))
+	_, err = conn.Exec(ctx, "CREATE SCHEMA IF NOT EXISTS "+pgx.Identifier{testSchema}.Sanitize())
 	return err
 }
 
@@ -250,33 +250,12 @@ func (e *env) getBearer(path, token string) *response {
 	return e.do(req)
 }
 
-// getBearerForm sends a POST carrying an Authorization: Bearer header, which is the
-// form /userinfo accepts as well as GET.
-func (e *env) postBearerForm(path, token string, form url.Values) *response {
-	e.t.Helper()
-	req, _ := http.NewRequest(http.MethodPost, e.url(path), strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("Authorization", "Bearer "+token)
-	return e.do(req)
-}
-
 // postFormBasic posts a form with HTTP Basic client authentication.
 func (e *env) postFormBasic(path string, form url.Values, clientID, secret string) *response {
 	e.t.Helper()
 	req, _ := http.NewRequest(http.MethodPost, e.url(path), strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.SetBasicAuth(clientID, secret)
-	return e.do(req)
-}
-
-func (e *env) postJSON(path string, body any) *response {
-	e.t.Helper()
-	encoded, err := json.Marshal(body)
-	if err != nil {
-		e.t.Fatalf("marshal: %v", err)
-	}
-	req, _ := http.NewRequest(http.MethodPost, e.url(path), bytes.NewReader(encoded))
-	req.Header.Set("Content-Type", "application/json")
 	return e.do(req)
 }
 
