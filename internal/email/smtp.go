@@ -31,15 +31,15 @@ func (t *smtpTransport) Send(ctx context.Context, msg *Message) error {
 		return fmt.Errorf("%w: transport is not initialised", ErrDelivery)
 	}
 	if err := ctx.Err(); err != nil {
-		return fmt.Errorf("%w: %v", ErrDelivery, err)
+		return fmt.Errorf("%w: %w", ErrDelivery, err)
 	}
 
 	m := mail.NewMsg()
 	if err := m.From(t.from.String()); err != nil {
-		return fmt.Errorf("%w: build from header: %v", ErrDelivery, err)
+		return fmt.Errorf("%w: build from header: %w", ErrDelivery, err)
 	}
 	if err := m.To(msg.To); err != nil {
-		return fmt.Errorf("%w: build to header: %v", ErrDelivery, err)
+		return fmt.Errorf("%w: build to header: %w", ErrDelivery, err)
 	}
 	// sanitizeHeader on the way in. A newline in a subject appends headers the
 	// receiving MTA will honour, which is how a mailer becomes an open relay for
@@ -66,7 +66,7 @@ func (t *smtpTransport) Send(ctx context.Context, msg *Message) error {
 	// the resulting error reads as a bug in the mailer rather than the server having
 	// dropped us.
 	if err := t.client.DialAndSendWithContext(ctx, m); err != nil {
-		return fmt.Errorf("%w: %v", ErrDelivery, err)
+		return fmt.Errorf("%w: %w", ErrDelivery, err)
 	}
 	return nil
 }

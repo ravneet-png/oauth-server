@@ -5,7 +5,7 @@ package middleware
 import (
 	"bufio"
 	"context"
-	"fmt"
+	"errors"
 	"net"
 	"net/http"
 	"time"
@@ -133,5 +133,5 @@ func (sr *statusRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	}
 	// Reported as an error rather than a panic: a handler that needs to hijack on a
 	// server that cannot should get an error it can handle.
-	return nil, nil, fmt.Errorf("middleware: underlying ResponseWriter does not support hijacking")
+	return nil, nil, errors.New("middleware: underlying ResponseWriter does not support hijacking")
 }

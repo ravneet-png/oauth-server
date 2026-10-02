@@ -10,7 +10,7 @@ package storage
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -172,7 +172,7 @@ func (r *AuthCodeRepo) AtomicMarkUsed(ctx context.Context, hash string) (*domain
 // does not exist, and continuing would issue tokens against a fiction.
 func (r *AuthCodeRepo) EnsureFamilyID(ctx context.Context, hash, familyID string) error {
 	if hash == "" || familyID == "" {
-		return fmt.Errorf("auth_code_repo: EnsureFamilyID: empty argument")
+		return errors.New("auth_code_repo: EnsureFamilyID: empty argument")
 	}
 
 	const q = `

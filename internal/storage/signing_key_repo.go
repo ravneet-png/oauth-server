@@ -5,7 +5,7 @@ package storage
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -238,10 +238,10 @@ func markSigningKeyRotating(ctx context.Context, db queryer, kid string, retireA
 // be bypassed by a caller mistake.
 func (r *SigningKeyRepo) Rotate(ctx context.Context, newKey *domain.SigningKey, retireAt time.Time) (*domain.SigningKey, error) {
 	if newKey == nil {
-		return nil, fmt.Errorf("storage: signing_keys.rotate: new key is nil")
+		return nil, errors.New("storage: signing_keys.rotate: new key is nil")
 	}
 	if retireAt.IsZero() {
-		return nil, fmt.Errorf("storage: signing_keys.rotate: retireAt is zero; the retention guard would be bypassed")
+		return nil, errors.New("storage: signing_keys.rotate: retireAt is zero; the retention guard would be bypassed")
 	}
 
 	tx, err := r.pool.Begin(ctx)

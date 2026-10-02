@@ -39,7 +39,7 @@ func NewMFAPendingStore(client *redis.Client, ttl time.Duration) *MFAPendingStor
 // are what the next step needs to resume the authorization.
 func (s *MFAPendingStore) Store(ctx context.Context, pendingID, userID, authRequestID string) error {
 	if pendingID == "" || userID == "" {
-		return fmt.Errorf("mfa: Store: empty argument")
+		return errors.New("mfa: Store: empty argument")
 	}
 
 	key := "mfa_pending:" + pendingID
@@ -76,7 +76,7 @@ func (s *MFAPendingStore) Get(ctx context.Context, pendingID string) (userID, au
 			return value[:i], value[i+1:], nil
 		}
 	}
-	return "", "", fmt.Errorf("mfa: Get: malformed value")
+	return "", "", errors.New("mfa: Get: malformed value")
 }
 
 // Delete removes a pending MFA state.

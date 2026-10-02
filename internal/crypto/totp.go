@@ -121,16 +121,16 @@ func GenerateSecret() (string, error) {
 // that no app can parse correctly.
 func ProvisioningURI(p TOTPParams) (string, error) {
 	if strings.Contains(p.Issuer, ":") {
-		return "", fmt.Errorf("crypto: totp issuer must not contain a colon")
+		return "", errors.New("crypto: totp issuer must not contain a colon")
 	}
 	if strings.Contains(p.AccountName, ":") {
-		return "", fmt.Errorf("crypto: totp account name must not contain a colon")
+		return "", errors.New("crypto: totp account name must not contain a colon")
 	}
 	if p.Period == 0 {
-		return "", fmt.Errorf("crypto: totp period must be positive")
+		return "", errors.New("crypto: totp period must be positive")
 	}
 	if p.Secret == "" {
-		return "", fmt.Errorf("crypto: totp secret is empty")
+		return "", errors.New("crypto: totp secret is empty")
 	}
 
 	// The URI is assembled here rather than through otp.NewKeyFromURL. That
@@ -173,7 +173,7 @@ func ProvisioningURI(p TOTPParams) (string, error) {
 // enrolment confirmation screen, never by the verification path.
 func TOTPCode(p TOTPParams, t time.Time) (string, error) {
 	if p.Secret == "" {
-		return "", fmt.Errorf("crypto: totp secret is empty")
+		return "", errors.New("crypto: totp secret is empty")
 	}
 	period := p.Period
 	if period == 0 {
@@ -221,7 +221,7 @@ func TOTPCounter(t time.Time, period uint) uint64 {
 // compromised" that they need to act on. Both return invalid_grant.
 func VerifyTOTP(p TOTPParams, code string, now time.Time, lastCounter uint64) (uint64, error) {
 	if p.Secret == "" {
-		return 0, fmt.Errorf("crypto: totp secret is empty")
+		return 0, errors.New("crypto: totp secret is empty")
 	}
 	if code == "" {
 		return 0, ErrTOTPInvalid
@@ -302,7 +302,7 @@ func hotpCode(secret string, counter uint64, digits otp.Digits) (string, error) 
 		return "", fmt.Errorf("crypto: decode totp secret: %w", err)
 	}
 	if len(raw) == 0 {
-		return "", fmt.Errorf("crypto: totp secret decoded to zero bytes")
+		return "", errors.New("crypto: totp secret decoded to zero bytes")
 	}
 
 	// The 8-byte big-endian counter is the whole HMAC message.

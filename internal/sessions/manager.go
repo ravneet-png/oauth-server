@@ -35,16 +35,16 @@ type Manager struct {
 // absTimeout: hard ceiling regardless of activity (never extended).
 func NewManager(repo *storage.SessionRepo, clientRepo *storage.ClientSessionRepo, idleTimeout, absTimeout time.Duration) (*Manager, error) {
 	if repo == nil {
-		return nil, fmt.Errorf("sessions: NewManager: repo is nil")
+		return nil, errors.New("sessions: NewManager: repo is nil")
 	}
 	if clientRepo == nil {
-		return nil, fmt.Errorf("sessions: NewManager: clientRepo is nil")
+		return nil, errors.New("sessions: NewManager: clientRepo is nil")
 	}
 	if idleTimeout <= 0 {
-		return nil, fmt.Errorf("sessions: NewManager: idleTimeout must be positive")
+		return nil, errors.New("sessions: NewManager: idleTimeout must be positive")
 	}
 	if absTimeout <= 0 {
-		return nil, fmt.Errorf("sessions: NewManager: absTimeout must be positive")
+		return nil, errors.New("sessions: NewManager: absTimeout must be positive")
 	}
 	if idleTimeout > absTimeout {
 		return nil, fmt.Errorf("sessions: NewManager: idleTimeout (%s) cannot exceed absTimeout (%s)", idleTimeout, absTimeout)
@@ -68,7 +68,7 @@ func NewManager(repo *storage.SessionRepo, clientRepo *storage.ClientSessionRepo
 // authority on how the user proved who they are.
 func (m *Manager) Create(ctx context.Context, userID string, authTime time.Time, amr []string) (*domain.Session, error) {
 	if userID == "" {
-		return nil, fmt.Errorf("sessions: Create: userID is empty")
+		return nil, errors.New("sessions: Create: userID is empty")
 	}
 
 	if len(amr) == 0 {
@@ -173,7 +173,7 @@ func (m *Manager) Destroy(ctx context.Context, sessionID string) error {
 // idempotent and the SID in ID tokens remains stable.
 func (m *Manager) AttachClient(ctx context.Context, sessionID, userID, clientID string) (string, error) {
 	if sessionID == "" || userID == "" || clientID == "" {
-		return "", fmt.Errorf("sessions: AttachClient: empty argument")
+		return "", errors.New("sessions: AttachClient: empty argument")
 	}
 
 	// Verify session ownership

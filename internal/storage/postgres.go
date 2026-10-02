@@ -223,7 +223,7 @@ func migrationDriverURL(dbURL string) (string, error) {
 	case strings.HasPrefix(dbURL, "postgresql://"):
 		return "pgx5://" + strings.TrimPrefix(dbURL, "postgresql://"), nil
 	default:
-		return "", fmt.Errorf("storage: database url scheme is not postgres:// or postgresql://")
+		return "", errors.New("storage: database url scheme is not postgres:// or postgresql://")
 	}
 }
 

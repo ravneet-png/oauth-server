@@ -384,7 +384,7 @@ func (s *Sender) Send(ctx context.Context, data TemplateData) error {
 			// long retry budget here becomes a long request.
 			select {
 			case <-ctx.Done():
-				return fmt.Errorf("%w: %v (last error: %v)", ErrDelivery, ctx.Err(), lastErr)
+				return fmt.Errorf("%w: %w (last error: %w)", ErrDelivery, ctx.Err(), lastErr)
 			case <-time.After(time.Duration(attempt) * 200 * time.Millisecond):
 			}
 		}
@@ -395,7 +395,7 @@ func (s *Sender) Send(ctx context.Context, data TemplateData) error {
 		"attempts", s.cfg.MaxAttempts,
 		"error", lastErr.Error(),
 	)
-	return fmt.Errorf("%w: %v", ErrDelivery, lastErr)
+	return fmt.Errorf("%w: %w", ErrDelivery, lastErr)
 }
 
 // render executes the template for a purpose into a Message.

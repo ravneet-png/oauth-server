@@ -235,7 +235,7 @@ func LogoutRP(ctx context.Context,
 			return "", errors.New("flows: LogoutRP: post_logout_redirect_uri client not found")
 		}
 		if !client.PostLogoutRedirectURIAllowed(postLogoutRedirectURI) {
-			return "", fmt.Errorf("flows: LogoutRP: post_logout_redirect_uri not registered for client")
+			return "", errors.New("flows: LogoutRP: post_logout_redirect_uri not registered for client")
 		}
 	}
 
@@ -251,7 +251,7 @@ func LogoutRP(ctx context.Context,
 		if state != "" {
 			u, parseErr := url.Parse(postLogoutRedirectURI)
 			if parseErr != nil {
-				return "", fmt.Errorf("flows: LogoutRP: registered redirect is not a URL")
+				return "", errors.New("flows: LogoutRP: registered redirect is not a URL")
 			}
 			q := u.Query()
 			q.Set("state", state)

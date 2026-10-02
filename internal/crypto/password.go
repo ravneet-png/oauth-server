@@ -224,7 +224,7 @@ func decodeHash(encodedHash string) (Argon2Params, []byte, []byte, error) {
 	}
 	sum, err := base64.RawStdEncoding.DecodeString(parts[5])
 	if err != nil {
-		return p, nil, nil, fmt.Errorf("%w: bad hash encoding: %v", ErrInvalidHash, err)
+		return p, nil, nil, fmt.Errorf("%w: bad hash encoding: %w", ErrInvalidHash, err)
 	}
 
 	// Derived from the stored data rather than from config, so a hash written
@@ -244,7 +244,7 @@ func parseCost(s string) (memory, iterations uint32, parallelism uint8, err erro
 		}
 		n, convErr := strconv.ParseUint(value, 10, 32)
 		if convErr != nil {
-			return 0, 0, 0, fmt.Errorf("%w: cost value %q is not a number: %v", ErrInvalidHash, value, convErr)
+			return 0, 0, 0, fmt.Errorf("%w: cost value %q is not a number: %w", ErrInvalidHash, value, convErr)
 		}
 		switch key {
 		case "m":
