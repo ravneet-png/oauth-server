@@ -44,10 +44,10 @@ type Handlers struct {
 	Signup         http.Handler
 	VerifyEmailDev http.Handler
 	Login          http.Handler
-	Logout    http.Handler
-	MFA       http.Handler
-	MFAEnroll http.Handler
-	Consent   http.Handler
+	Logout         http.Handler
+	MFA            http.Handler
+	MFAEnroll      http.Handler
+	Consent        http.Handler
 
 	// Account endpoints. Registration and reset are machine endpoints (JSON in and out);
 	// verification is a browser navigation from an emailed link.
