@@ -1,0 +1,72 @@
+{{define "callback"}}{{template "layout_head" .}}
+<div class="console" id="callback-console"
+     data-issuer="{{.Issuer}}"
+     data-client-id="{{.DemoClientID}}"
+     data-callback-url="{{.CallbackURL}}"
+     data-code="{{.Code}}"
+     data-state="{{.State}}"
+     data-iss="{{.ReturnedIss}}"
+     data-error="{{.OAuthError}}">
+
+  <div class="console__banner">
+    {{if .OAuthError}}
+      <span class="badge badge--error">Authorization Error: <code>{{.OAuthError}}</code></span>
+    {{else if .Code}}
+      <span class="badge badge--success">&#10003; Authorization Code Issued</span>
+    {{else}}
+      <span class="badge">OAuth 2.1 Callback</span>
+    {{end}}
+    {{if .ReturnedIss}}<span class="badge">RFC 9207 <code>iss={{.ReturnedIss}}</code></span>{{end}}
+    {{if .State}}<span class="badge"><code>state={{.State}}</code></span>{{end}}
+  </div>
+
+  {{if .OAuthError}}
+  <div class="alert alert--error">
+    <strong>{{.OAuthError}}</strong>{{if .OAuthDesc}}: {{.OAuthDesc}}{{end}}
+  </div>
+  {{end}}
+
+  {{if .Code}}
+  <section class="panel panel--full">
+    <div class="panel__header">
+      <h2 class="panel__title">1. Authorization Code &amp; Automatic PKCE Exchange (<code>POST /token</code>)</h2>
+      <div class="button-row button-row--tight">
+        <button type="button" id="exchange-code-btn" class="button button--primary button--sm">Exchange Code for Tokens</button>
+        <button type="button" id="replay-code-btn" class="button button--secondary button--sm" title="Send the same authorization code a second time to test OAuth 2.1 reuse detection">Test Code Replay Attack</button>
+      </div>
+    </div>
+    <p class="muted">One-time code: <code>{{.Code}}</code></p>
+    <pre class="code-box" id="token-status">Exchanging authorization code + PKCE code_verifier with POST /token...</pre>
+  </section>
+
+  <div class="console__grid">
+    <section class="panel">
+      <h2 class="panel__title">2. Decoded Access Token (RS256 JWT)</h2>
+      <pre class="code-box code-box--tall" id="access-token-decoded">Waiting for token exchange...</pre>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">3. Decoded OIDC ID Token Claims</h2>
+      <pre class="code-box code-box--tall" id="id-token-decoded">Waiting for token exchange...</pre>
+    </section>
+  </div>
+
+  <section class="panel panel--full">
+    <div class="panel__header">
+      <h2 class="panel__title">4. Interactive Token Operations</h2>
+      <div class="button-row button-row--tight">
+        <button type="button" id="call-userinfo-btn" class="button button--primary button--sm" disabled>Call GET /userinfo</button>
+        <button type="button" id="rotate-refresh-btn" class="button button--secondary button--sm" disabled>Rotate Refresh Token (POST /token)</button>
+        <button type="button" id="revoke-token-btn" class="button button--secondary button--sm" disabled>Revoke Token (POST /revoke)</button>
+      </div>
+    </div>
+    <pre class="code-box code-box--tall" id="operation-output">Once tokens are issued above, click any operation button to test /userinfo, refresh rotation, code replay cascade, or revocation.</pre>
+  </section>
+  {{end}}
+
+  <div class="button-row">
+    <a class="button button--secondary" href="/">&larr; Back to Developer Console</a>
+  </div>
+</div>
+<script nonce="{{.Nonce}}" src="/assets/playground.js"></script>
+{{template "layout_foot" .}}{{end}}

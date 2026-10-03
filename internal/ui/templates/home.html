@@ -1,0 +1,104 @@
+{{define "home"}}{{template "layout_head" .}}
+<div class="console" data-issuer="{{.Issuer}}" data-client-id="{{.DemoClientID}}" data-callback-url="{{.CallbackURL}}">
+  <div class="console__banner">
+    <span class="badge badge--success">● Online &middot; OAuth 2.1 + OIDC</span>
+    <span class="badge">Issuer: <code>{{.Issuer}}</code></span>
+    {{if .ActiveKeyID}}<span class="badge">Active Key: <code>{{.ActiveKeyID}}</code></span>{{end}}
+  </div>
+
+  <div class="console__grid">
+    <section class="panel">
+      <h2 class="panel__title">1. Identity &amp; Session State</h2>
+      {{if .Authenticated}}
+      <div class="kv-list">
+        <div class="kv-row">
+          <span class="kv-label">Signed in as</span>
+          <span class="kv-value"><strong>{{if .UserName}}{{.UserName}} ({{.UserEmail}}){{else}}{{.UserEmail}}{{end}}</strong></span>
+        </div>
+        <div class="kv-row">
+          <span class="kv-label">Subject (<code>sub</code>)</span>
+          <span class="kv-value"><code>{{.UserID}}</code></span>
+        </div>
+        <div class="kv-row">
+          <span class="kv-label">Email Verified</span>
+          <span class="kv-value">
+            {{if .EmailVerified}}
+              <span class="badge badge--success">Verified</span>
+            {{else}}
+              <span class="badge badge--warn">Unverified</span>
+            {{end}}
+          </span>
+        </div>
+        <div class="kv-row">
+          <span class="kv-label">Two-Factor (TOTP)</span>
+          <span class="kv-value">
+            {{if .MFAEnabled}}
+              <span class="badge badge--success">Enabled</span>
+            {{else}}
+              <span class="badge">Not enrolled</span>
+            {{end}}
+          </span>
+        </div>
+      </div>
+
+      {{if not .EmailVerified}}
+      <form method="post" action="/signup/verify-dev" class="inline-form">
+        <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+        <button type="submit" class="button button--primary button--sm">Verify Email Instantly (1-Click)</button>
+        <span class="field__hint">Or open Mailpit at <code>http://localhost:8025</code> to click the emailed link.</span>
+      </form>
+      {{end}}
+
+      <div class="button-row">
+        {{if not .MFAEnabled}}<a class="button button--secondary" href="/mfa/enroll">Enroll 2FA (TOTP)</a>{{end}}
+        <a class="button button--secondary" href="/logout">Sign out</a>
+      </div>
+      {{else}}
+      <p class="muted">No active browser session. Create a test account or sign in—or launch the OAuth 2.1 flow directly to be prompted automatically.</p>
+      <div class="button-row">
+        <a class="button button--primary" href="/signup">Create Account</a>
+        <a class="button button--secondary" href="/login">Sign In</a>
+      </div>
+      {{end}}
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">2. Interactive OAuth 2.1 + PKCE Flow</h2>
+      <p class="muted">Pre-configured public client <code>{{.DemoClientID}}</code> with mandatory <code>S256</code> PKCE.</p>
+
+      <div class="field">
+        <span class="field__label">Requested Scopes</span>
+        <div class="scope-chips">
+          <label class="chip"><input type="checkbox" class="js-scope" value="openid" checked> <span>openid</span></label>
+          <label class="chip"><input type="checkbox" class="js-scope" value="profile" checked> <span>profile</span></label>
+          <label class="chip"><input type="checkbox" class="js-scope" value="email" checked> <span>email</span></label>
+          <label class="chip"><input type="checkbox" class="js-scope" value="offline_access" checked> <span>offline_access</span></label>
+        </div>
+      </div>
+
+      <div class="field">
+        <span class="field__label">PKCE <code>code_verifier</code> &rarr; <code>S256 code_challenge</code></span>
+        <pre class="code-box" id="pkce-preview">Generating WebCrypto S256 PKCE parameters...</pre>
+      </div>
+
+      <div class="button-row">
+        <a id="launch-authorize-btn" class="button button--primary" href="/authorize?response_type=code&amp;client_id={{.DemoClientID}}&amp;redirect_uri={{.CallbackURL}}&amp;scope=openid+profile+email+offline_access&amp;state=xyz123&amp;nonce=n123&amp;code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&amp;code_challenge_method=S256">Launch OAuth 2.1 Authorize Flow &rarr;</a>
+        <button type="button" id="regen-pkce-btn" class="button button--secondary">New PKCE Pair</button>
+      </div>
+    </section>
+  </div>
+
+  <section class="panel panel--full">
+    <div class="panel__header">
+      <h2 class="panel__title">3. Live Protocol &amp; Metadata Inspector</h2>
+      <div class="button-row button-row--tight">
+        <button type="button" class="button button--secondary button--sm js-inspect-btn" data-endpoint="/.well-known/openid-configuration">OIDC Discovery</button>
+        <button type="button" class="button button--secondary button--sm js-inspect-btn" data-endpoint="/.well-known/jwks.json">JWKS Public Keys</button>
+        <button type="button" class="button button--secondary button--sm js-inspect-btn" data-endpoint="/health">Health Check</button>
+      </div>
+    </div>
+    <pre class="code-box code-box--tall" id="inspector-output">Click any endpoint button above to inspect live server responses.</pre>
+  </section>
+</div>
+<script nonce="{{.Nonce}}" src="/assets/playground.js"></script>
+{{template "layout_foot" .}}{{end}}

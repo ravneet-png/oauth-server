@@ -1,5 +1,5 @@
 {{define "register"}}{{template "layout_head" .}}
-<form method="post" action="/register" class="form">
+<form method="post" action="/signup" class="form">
   <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
   {{if .AuthRequestID}}<input type="hidden" name="auth_request_id" value="{{.AuthRequestID}}">{{end}}
   {{if .ClientID}}<input type="hidden" name="client_id" value="{{.ClientID}}">{{end}}
@@ -31,5 +31,9 @@
   <button class="button button--primary" type="submit">Create account</button>
 </form>
 
-<p class="links"><a href="/login">Already have an account? Sign in</a></p>
+<p class="links">
+  <a href="/login{{if .AuthRequestID}}?auth_request_id={{.AuthRequestID}}{{end}}">Already have an account? Sign in</a>
+  <span aria-hidden="true"> &middot; </span>
+  <a href="/">Developer Console</a>
+</p>
 {{template "layout_foot" .}}{{end}}

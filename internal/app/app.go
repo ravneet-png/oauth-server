@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"oauth-server/internal/audit"
@@ -106,6 +107,17 @@ func New(ctx context.Context, opts Options) (*App, error) {
 	emailVerificationRepo := storage.NewEmailVerificationRepo(raw)
 	auditRepo := storage.NewAuditRepo(raw)
 	signingKeyRepo := storage.NewSigningKeyRepo(raw)
+
+	if !cfg.Security.SessionCookieSecure {
+		issuer := strings.TrimRight(cfg.Server.Issuer, "/")
+		if err := clientRepo.EnsureDemoClient(
+			ctx,
+			[]string{issuer + "/callback"},
+			[]string{issuer + "/"},
+		); err != nil {
+			log.Warn("app: ensure demo-client failed", "error", err)
+		}
+	}
 
 	// Encryption at rest. One key opens both the signing keys and the TOTP seeds; a
 	// second secret would double the rotation ceremony without separating anything,
@@ -362,7 +374,11 @@ func handlerTable(d *handlers.Deps) httpapi.Handlers {
 
 		ClientRegister: http.HandlerFunc(d.ClientRegister),
 
-		Login:     http.HandlerFunc(d.Login),
+		Home:           http.HandlerFunc(d.Home),
+		Callback:       http.HandlerFunc(d.Callback),
+		Signup:         http.HandlerFunc(d.Signup),
+		VerifyEmailDev: http.HandlerFunc(d.VerifyEmailDev),
+		Login:          http.HandlerFunc(d.Login),
 		Logout:    http.HandlerFunc(d.Logout),
 		MFA:       http.HandlerFunc(d.MFAChallenge),
 		MFAEnroll: http.HandlerFunc(d.MFAEnroll),

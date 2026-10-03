@@ -212,3 +212,37 @@ func (r *ClientRepo) GetWithBackchannelLogout(ctx context.Context) ([]*domain.Cl
 	}
 	return out, nil
 }
+
+// EnsureDemoClient upserts the built-in public playground client ("demo-client") so the
+// interactive developer console at GET / works out of the box without manual SQL setup.
+func (r *ClientRepo) EnsureDemoClient(ctx context.Context, redirectURIs, postLogoutURIs []string) error {
+	const q = `
+		INSERT INTO clients (
+			client_id, client_secret_hash, client_name,
+			token_endpoint_auth_method,
+			redirect_uris, post_logout_redirect_uris,
+			grant_types, response_types, scopes
+		) VALUES (
+			'demo-client', NULL, 'OAuth 2.1 Playground App',
+			'none',
+			$1, $2,
+			ARRAY['authorization_code', 'refresh_token'],
+			ARRAY['code'],
+			ARRAY['openid', 'profile', 'email', 'offline_access']
+		)
+		ON CONFLICT (client_id) DO UPDATE SET
+			client_secret_hash = NULL,
+			client_name = 'OAuth 2.1 Playground App',
+			token_endpoint_auth_method = 'none',
+			redirect_uris = $1,
+			post_logout_redirect_uris = $2,
+			grant_types = ARRAY['authorization_code', 'refresh_token'],
+			response_types = ARRAY['code'],
+			scopes = ARRAY['openid', 'profile', 'email', 'offline_access'],
+			updated_at = now()`
+
+	if _, err := r.pool.Exec(ctx, q, redirectURIs, postLogoutURIs); err != nil {
+		return classifyError(err, formatOp("clients", "ensure_demo"))
+	}
+	return nil
+}

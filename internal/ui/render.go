@@ -253,6 +253,36 @@ type UnauthorizedData struct {
 	Reason string
 }
 
+// HomeData renders home.html (the interactive OAuth 2.1 + OIDC developer console).
+type HomeData struct {
+	Base
+
+	Issuer        string
+	DemoClientID  string
+	CallbackURL   string
+	ActiveKeyID   string
+	Authenticated bool
+	UserID        string
+	UserEmail     string
+	UserName      string
+	EmailVerified bool
+	MFAEnabled    bool
+}
+
+// CallbackData renders callback.html (the OAuth 2.1 redirect landing and token inspector).
+type CallbackData struct {
+	Base
+
+	Issuer       string
+	DemoClientID string
+	CallbackURL  string
+	Code         string
+	State        string
+	ReturnedIss  string
+	OAuthError   string
+	OAuthDesc    string
+}
+
 // StaticFS returns the static asset filesystem.
 func StaticFS() (fs.FS, error) {
 	sub, err := fs.Sub(staticFS, "static")
@@ -274,6 +304,8 @@ const (
 	PageError        = "error"
 	PageLoggedOut    = "logged_out"
 	PageUnauthorized = "unauthorized"
+	PageHome         = "home"
+	PageCallback     = "callback"
 )
 
 // Render writes a page with security headers.
@@ -334,6 +366,7 @@ func (r *Renderer) cspPolicy(data any) string {
 	} else {
 		b.WriteString("; script-src 'none'")
 	}
+	b.WriteString("; connect-src 'self'")
 	b.WriteString("; img-src 'self' data:")
 	b.WriteString("; form-action 'self' https: http:")
 	// base-uri stops a <base> tag rewriting every relative link on the page, and
@@ -368,6 +401,10 @@ func nonceOf(data any) string {
 		return d.Nonce
 	case UnauthorizedData:
 		return d.Nonce
+	case HomeData:
+		return d.Nonce
+	case CallbackData:
+		return d.Nonce
 	default:
 		return ""
 	}
@@ -399,6 +436,10 @@ func correlationID(data any) string {
 	case LoggedOutData:
 		return d.RequestID
 	case UnauthorizedData:
+		return d.RequestID
+	case HomeData:
+		return d.RequestID
+	case CallbackData:
 		return d.RequestID
 	default:
 		return ""

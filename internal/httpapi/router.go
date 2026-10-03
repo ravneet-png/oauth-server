@@ -39,7 +39,11 @@ type Handlers struct {
 	ClientRegister http.Handler
 
 	// Browser endpoints. Session cookie, CSRF token, HTML pages.
-	Login     http.Handler
+	Home           http.Handler
+	Callback       http.Handler
+	Signup         http.Handler
+	VerifyEmailDev http.Handler
+	Login          http.Handler
 	Logout    http.Handler
 	MFA       http.Handler
 	MFAEnroll http.Handler
@@ -241,6 +245,19 @@ func NewRouter(h Handlers, mw MiddlewareConfig) *Router {
 	api("/reset-password", http.MethodPost, h.ResetPassword, "register")
 
 	// Browser endpoints.
+	if h.Home != nil {
+		page("/{$}", h.Home)
+	}
+	if h.Callback != nil {
+		page("/callback", h.Callback)
+	}
+	if h.Signup != nil {
+		browser("/signup", h.Signup, "register")
+		page("/register", h.Signup)
+	}
+	if h.VerifyEmailDev != nil {
+		browser("/signup/verify-dev", h.VerifyEmailDev, "")
+	}
 	browser("/login", h.Login, "login")
 	browser("/logout", h.Logout, "")
 	browser("/mfa", h.MFA, "mfa")

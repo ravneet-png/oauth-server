@@ -82,6 +82,26 @@ func TestEveryPageRenders(t *testing.T) {
 			Base:   Base{Nonce: "n1", Title: "Not allowed"},
 			Reason: "Administrator access is required.",
 		}},
+		{PageHome, HomeData{
+			Base:          Base{Nonce: "n1", CSRFToken: "c1", Title: "OAuth 2.1 Developer Console"},
+			Issuer:        "http://localhost:8080",
+			DemoClientID:  "demo-client",
+			CallbackURL:   "http://localhost:8080/callback",
+			ActiveKeyID:   "kid-1",
+			Authenticated: true,
+			UserID:        "user-1",
+			UserEmail:     "alice@example.com",
+			UserName:      "Alice",
+		}},
+		{PageCallback, CallbackData{
+			Base:         Base{Nonce: "n1", Title: "OAuth 2.1 Callback & Token Inspector"},
+			Issuer:       "http://localhost:8080",
+			DemoClientID: "demo-client",
+			CallbackURL:  "http://localhost:8080/callback",
+			Code:         "code-123",
+			State:        "xyz123",
+			ReturnedIss:  "http://localhost:8080",
+		}},
 	}
 
 	for _, tc := range pages {
