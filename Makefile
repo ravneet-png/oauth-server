@@ -78,10 +78,9 @@ docker-up: ## Start dependencies and app
 docker-down: ## Stop the full stack
 	$(COMPOSE) down
 
-# The migrate-* targets above shell out to ./cmd/migrate, which is still a stub.
-# The schema-* targets below bypass it and drive psql inside the container
-# directly, because they must work before the migration runner exists, and
-# because testing the migration is not the same task as testing the runner.
+# The migrate-* targets above run ./cmd/migrate against the configured database.
+# The schema-* targets below drive psql inside the container directly so they
+# can test the raw SQL migrations in isolation.
 
 schema-apply: ## Apply migrations via psql (requires an EMPTY database)
 	$(COMPOSE) up -d postgres

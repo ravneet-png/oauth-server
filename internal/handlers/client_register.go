@@ -121,7 +121,7 @@ func (d *Deps) registrationAuthorised(r *http.Request) bool {
 	}
 	provided := strings.TrimSpace(header[len(prefix):])
 	// Constant-time comparison against the configured token via its digest.
-	return secureEqual(crypto.SHA256Hex(d.Config.InitialAccessToken), provided)
+	return secureEqual(d.Config.InitialAccessToken, provided)
 }
 
 // buildClientFromRegistration validates metadata and constructs the client.

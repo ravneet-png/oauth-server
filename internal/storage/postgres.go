@@ -202,6 +202,87 @@ func RunMigrations(ctx context.Context, dbURL string) error {
 	return nil
 }
 
+// openMigrator constructs a golang-migrate instance backed by the embedded migrations.
+func openMigrator(ctx context.Context, dbURL string) (*migrate.Migrate, func(), error) {
+	if dbURL == "" {
+		return nil, nil, errors.New("storage: database.url is empty")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, nil, fmt.Errorf("storage: migrate context: %w", err)
+	}
+	source, err := iofs.New(migrations.FS, ".")
+	if err != nil {
+		return nil, nil, fmt.Errorf("storage: open embedded migrations: %w", err)
+	}
+	migrationURL, err := migrationDriverURL(dbURL)
+	if err != nil {
+		_ = source.Close()
+		return nil, nil, err
+	}
+	m, err := migrate.NewWithSourceInstance("iofs", source, migrationURL)
+	if err != nil {
+		_ = source.Close()
+		return nil, nil, fmt.Errorf("storage: migration driver: %w", err)
+	}
+	cleanup := func() {
+		_, _ = m.Close()
+		_ = source.Close()
+	}
+	return m, cleanup, nil
+}
+
+// MigrateDown rolls back steps migrations (or all migrations when steps <= 0).
+func MigrateDown(ctx context.Context, dbURL string, steps int) error {
+	m, cleanup, err := openMigrator(ctx, dbURL)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
+	var migErr error
+	if steps > 0 {
+		migErr = m.Steps(-steps)
+	} else {
+		migErr = m.Down()
+	}
+	if migErr != nil && !errors.Is(migErr, migrate.ErrNoChange) {
+		return fmt.Errorf("storage: migrate down: %w", migErr)
+	}
+	return nil
+}
+
+// MigrateStatus returns the active schema migration version and whether it is dirty.
+func MigrateStatus(ctx context.Context, dbURL string) (uint, bool, error) {
+	m, cleanup, err := openMigrator(ctx, dbURL)
+	if err != nil {
+		return 0, false, err
+	}
+	defer cleanup()
+
+	version, dirty, err := m.Version()
+	if errors.Is(err, migrate.ErrNilVersion) {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, fmt.Errorf("storage: migrate status: %w", err)
+	}
+	return version, dirty, nil
+}
+
+// MigrateForce sets the schema migration version without running SQL.
+func MigrateForce(ctx context.Context, dbURL string, version int) error {
+	m, cleanup, err := openMigrator(ctx, dbURL)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
+	if err := m.Force(version); err != nil {
+		return fmt.Errorf("storage: migrate force: %w", err)
+	}
+	return nil
+}
+
 // migrationDriverURL rewrites a libpq connection URL so golang-migrate selects
 // the pgx5 driver.
 //

@@ -24,12 +24,15 @@ git clone <repo>
 cd oauth-server
 cp .env.example .env   # optional in development; required in production
 docker compose up -d   # builds the app and starts postgres, redis and mailhog
-curl http://localhost:8080/.well-known/openid-configuration
 ```
 
-The server applies its embedded migrations on startup, so there is no separate
-migrate step. `cmd/migrate` is a stub; the `make schema-*` targets drive `psql`
-directly and exist to test the SQL in isolation, not to run the application.
+Open **`http://localhost:8080`** in your browser to use the interactive **OAuth 2.1 + OIDC Developer Console**:
+
+1. Click **Create Account** (`/signup`), enter your name/email/password, and click the **1-Click Dev Email Verify** banner.
+2. On the Developer Console (`http://localhost:8080/`), inspect your live WebCrypto `S256` PKCE pair (`code_verifier` + `code_challenge`), toggle scopes (`openid`, `profile`, `email`, `offline_access`), and click **Launch OAuth 2.1 Authorize Flow →**.
+3. Approve the consent screen (`/consent`) to land on the **Callback & Token Inspector** (`http://localhost:8080/callback`), which automatically exchanges the authorization code + PKCE `code_verifier` at `POST /token`, decodes the RS256 Access Token and OIDC ID Token, and provides one-click test buttons for `GET /userinfo`, refresh token rotation, authorization code replay cascade, and `POST /revoke`.
+
+The server applies its embedded migrations automatically on startup, and also provides `cmd/migrate` (`make migrate-up`, `make migrate-down`, `make migrate-status`) for standalone schema management. In development (`OAUTH_ENV=development`), it also auto-seeds a public PKCE client (`client_id: demo-client`, `redirect_uri: http://localhost:8080/callback`) so the entire browser flow works out of the box without manual `psql` or `curl` commands.
 
 In development (`OAUTH_ENV=development`, set by `docker-compose.yml`) the server
 generates ephemeral key material when `OAUTH_KEY_ENCRYPTION_KEY` and

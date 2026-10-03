@@ -19,12 +19,12 @@ import (
 // ExchangeRefreshToken exchanges a refresh token for new tokens.
 //
 // Implements:
-// 1. Atomic rotation (🔧6)
-// 2. Rotated token reuse detection with family cascade (FIX 3)
-// 3. Other revocation reasons don't cascade (🔧7)
-// 4. New access token tracking (🔧6)
-// 5. New refresh token in same family (🔧7)
-// 5. Grace window handled by AtomicRotate + ReplacedByHash
+// 1. Pre-check client ownership and expiry before mutating state
+// 2. Atomic rotation (🔧6)
+// 3. Rotated token reuse detection with family cascade (FIX 3)
+// 4. Other revocation reasons don't cascade (🔧7)
+// 5. New access token tracking (🔧6)
+// 6. New refresh token in same family (🔧7)
 func ExchangeRefreshToken(ctx context.Context,
 	client *domain.Client,
 	rawRefreshToken string,
@@ -41,17 +41,36 @@ func ExchangeRefreshToken(ctx context.Context,
 	// 1. hash = SHA256Hex(rawRefreshToken)
 	hash := crypto.SHA256Hex(rawRefreshToken)
 
-	// 2. ATOMIC ROTATION: refreshTokenRepo.AtomicRotate(ctx, hash)
+	// 2. PRE-CHECK: Validate client ownership and expiry before rotating atomically.
+	// This prevents an unrelated client from revoking a refresh token that the
+	// legitimate owner still holds, and avoids marking an expired token as rotated.
+	preCheck, err := refreshTokenRepo.GetByHash(ctx, hash)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			return nil, domain.NewInvalidGrant("refresh token not found")
+		}
+		return nil, fmt.Errorf("flows: get refresh token for pre-check: %w", err)
+	}
+
+	if preCheck.ClientID != client.ClientID {
+		return nil, domain.NewInvalidGrant("client mismatch")
+	}
+
+	now := time.Now().UTC()
+
+	if preCheck.RevokedAt == nil && preCheck.ExpiresAt.Before(now) {
+		return nil, domain.NewInvalidGrant("refresh token expired")
+	}
+
+	// 3. ATOMIC ROTATION: refreshTokenRepo.AtomicRotate(ctx, hash)
 	rt, err := refreshTokenRepo.AtomicRotate(ctx, hash)
 	if err != nil {
 		return nil, fmt.Errorf("flows: atomic rotate: %w", err)
 	}
 
-	now := time.Now().UTC()
-
-	// 3. IF rt == nil (already revoked)
+	// 4. IF rt == nil (already revoked or lost a concurrent race)
 	if rt == nil {
-		// Fetch existing token for details
+		// Re-fetch existing token to read the authoritative revocation reason.
 		existingRT, err := refreshTokenRepo.GetByHash(ctx, hash)
 		if err != nil {
 			if errors.Is(err, domain.ErrNotFound) {
@@ -92,7 +111,7 @@ func ExchangeRefreshToken(ctx context.Context,
 		return nil, domain.NewInvalidGrant("token has been revoked")
 	}
 
-	// 4. Successfully rotated. Validate:
+	// 5. Successfully rotated. Validate:
 	if rt.ExpiresAt.Before(now) {
 		return nil, domain.NewInvalidGrant("refresh token expired")
 	}
@@ -100,7 +119,7 @@ func ExchangeRefreshToken(ctx context.Context,
 		return nil, domain.NewInvalidGrant("client mismatch")
 	}
 
-	// 5. Generate new access token, track it (session_id = rt.SessionID)
+	// 6. Generate new access token, track it (session_id = rt.SessionID)
 	accessTokenResp, err := accessBuilder.Build(ctx, tokens.AccessTokenParams{
 		UserID:   rt.UserID,
 		ClientID: client.ClientID,
@@ -129,7 +148,7 @@ func ExchangeRefreshToken(ctx context.Context,
 		return nil, fmt.Errorf("flows: track access token: %w", err)
 	}
 
-	// 6. Generate new refresh token (same family_id, same session_id)
+	// 7. Generate new refresh token (same family_id, same session_id)
 	newRT, err := tokens.GenerateRefreshToken()
 	if err != nil {
 		return nil, fmt.Errorf("flows: generate refresh token: %w", err)
@@ -167,7 +186,7 @@ func ExchangeRefreshToken(ctx context.Context,
 		_ = err
 	}
 
-	// 7. Return new tokens
+	// 8. Return new tokens
 	return &TokenResponse{
 		AccessToken:  accessToken,
 		TokenType:    "Bearer",
