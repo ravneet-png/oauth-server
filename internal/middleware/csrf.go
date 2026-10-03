@@ -105,7 +105,8 @@ func (c *CSRFMiddleware) Protect(next http.Handler) http.Handler {
 			return
 		}
 
-		next.ServeHTTP(w, r)
+		ctx := context.WithValue(r.Context(), csrfKey, c.cookieToken(r))
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 

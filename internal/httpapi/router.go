@@ -252,7 +252,7 @@ func NewRouter(h Handlers, mw MiddlewareConfig) *Router {
 		page("/callback", h.Callback)
 	}
 	if h.Signup != nil {
-		browser("/signup", h.Signup, "register")
+		browser("/signup", h.Signup, "")
 		page("/register", h.Signup)
 	}
 	if h.VerifyEmailDev != nil {
