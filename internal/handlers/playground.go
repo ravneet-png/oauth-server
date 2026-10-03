@@ -184,7 +184,7 @@ func (d *Deps) signupPost(w http.ResponseWriter, r *http.Request) {
 
 	d.sendSignupNotice(r, emailAddr, false)
 
-	d.establishSession(w, r, user, now, []string{domain.AMRPWD}, authRequestID)
+	d.establishSession(w, r, user, now, []string{domain.AMRPwd}, authRequestID)
 }
 
 // VerifyEmailDev handles POST /signup/verify-dev to mark the signed-in user's email verified in local dev.
