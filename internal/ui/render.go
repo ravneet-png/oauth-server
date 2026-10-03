@@ -335,7 +335,7 @@ func (r *Renderer) cspPolicy(data any) string {
 		b.WriteString("; script-src 'none'")
 	}
 	b.WriteString("; img-src 'self' data:")
-	b.WriteString("; form-action 'self'")
+	b.WriteString("; form-action 'self' https: http:")
 	// base-uri stops a <base> tag rewriting every relative link on the page, and
 	// frame-ancestors stops a clickjacking overlay.
 	b.WriteString("; base-uri 'none'")

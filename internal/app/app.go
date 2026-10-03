@@ -433,7 +433,7 @@ func headersMiddleware(cfg *config.Config, log *slog.Logger) func(http.Handler) 
 // and is shared by every process behind the load balancer.
 func csrfMiddleware(cfg *config.Config, d *handlers.Deps) func(http.Handler) http.Handler {
 	csrfCfg := middleware.CSRFConfig{
-		CookieName:           "__Host-oauth_csrf",
+		CookieName:           "oauth_csrf",
 		CookiePath:           "/",
 		CookieMaxAge:         3600,
 		CookieSecure:         cfg.Security.SessionCookieSecure,
