@@ -195,19 +195,33 @@ func (d *Deps) buildClientFromRegistration(req clientRegistrationRequest) (*doma
 	}
 
 	now := time.Now().UTC()
+	redirectURIs := req.RedirectURIs
+	if redirectURIs == nil {
+		redirectURIs = []string{}
+	}
+	postLogoutURIs := req.PostLogoutRedirectURIs
+	if postLogoutURIs == nil {
+		postLogoutURIs = []string{}
+	}
+	parsedScopes := strings.Fields(req.Scope)
+	if parsedScopes == nil {
+		parsedScopes = []string{}
+	}
 	client := &domain.Client{
 		ClientID:                newOpaqueID(),
 		ClientIDIssuedAt:        now,
 		ClientName:              req.ClientName,
-		RedirectURIs:            req.RedirectURIs,
+		RedirectURIs:            redirectURIs,
 		GrantTypes:              grantTypes,
 		ResponseTypes:           responseTypes,
-		Scopes:                  strings.Fields(req.Scope),
+		Scopes:                  parsedScopes,
+		Contacts:                []string{},
+		SubjectType:             "public",
 		TokenEndpointAuthMethod: authMethod,
 		TokenTTL:                d.Config.AccessTTL,
 		RefreshIdleTTL:          d.Config.RefreshTTL,
 		ClientCredentialsTTL:    d.Config.ClientCredTTL,
-		PostLogoutRedirectURIs:  req.PostLogoutRedirectURIs,
+		PostLogoutRedirectURIs:  postLogoutURIs,
 		CreatedAt:               now,
 		UpdatedAt:               now,
 	}
@@ -234,10 +248,7 @@ func (d *Deps) buildClientFromRegistration(req clientRegistrationRequest) (*doma
 	if err != nil {
 		return nil, "", errInvalidMetadata("could not allocate a client secret")
 	}
-	hash, err := crypto.HashPassword(secret, d.argonParams())
-	if err != nil {
-		return nil, "", errInvalidMetadata("could not hash the client secret")
-	}
+	hash := crypto.SHA256Hex(secret)
 	client.ClientSecretHash = &hash
 	return client, secret, nil
 }

@@ -19,6 +19,7 @@ import (
 	"oauth-server/internal/storage"
 )
 
+//nolint:gosec // G101: local development database URL default
 const defaultDevDBURL = "postgres://oauth:oauth@localhost:5432/oauth?sslmode=disable"
 
 func main() {
