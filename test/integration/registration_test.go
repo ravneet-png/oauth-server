@@ -86,10 +86,19 @@ func TestDynamicClientRegistrationGating(t *testing.T) {
 		t.Fatalf("registered client missing credentials: %+v", regOut)
 	}
 
-	// Verify the dynamically registered client can immediately obtain a client_credentials token.
-	tokResp := e.postFormBasic("/token", url.Values{
+	// Client-credentials tokens have no end-user, so the OIDC openid scope is refused.
+	openidResp := e.postFormBasic("/token", url.Values{
 		"grant_type": {"client_credentials"},
 		"scope":      {"openid"},
+	}, regOut.ClientID, regOut.ClientSecret)
+	if openidResp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("client_credentials with openid scope status = %d, want 400; body = %s", openidResp.StatusCode, body(t, openidResp))
+	}
+
+	// A permitted non-OIDC scope succeeds for the dynamically registered client.
+	tokResp := e.postFormBasic("/token", url.Values{
+		"grant_type": {"client_credentials"},
+		"scope":      {"profile"},
 	}, regOut.ClientID, regOut.ClientSecret)
 	if tokResp.StatusCode != http.StatusOK {
 		t.Fatalf("token with registered client status = %d, want 200; body = %s", tokResp.StatusCode, body(t, tokResp))
@@ -117,8 +126,9 @@ func TestPostLogoutRedirectValidationRefusesUnregisteredTarget(t *testing.T) {
 		"state":                    {"logout-state-1"},
 	}
 	resp := e.get("/logout?" + q.Encode())
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("unregistered post_logout_redirect_uri status = %d, want 400; body = %s", resp.StatusCode, body(t, resp))
+	// The server refuses the external redirect, signs out locally, and renders its confirmation page.
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("unregistered post_logout_redirect_uri status = %d, want local confirmation 200; body = %s", resp.StatusCode, body(t, resp))
 	}
 	if loc := resp.Header.Get("Location"); loc != "" {
 		t.Errorf("unexpected Location header %q on refused post-logout redirect", loc)
