@@ -23,6 +23,7 @@ import (
 const (
 	ErrCodeInvalidRequest          = "invalid_request"
 	ErrCodeInvalidClient           = "invalid_client"
+	ErrCodeInvalidToken            = "invalid_token"
 	ErrCodeInvalidGrant            = "invalid_grant"
 	ErrCodeUnauthorizedClient      = "unauthorized_client"
 	ErrCodeUnsupportedGrantType    = "unsupported_grant_type"
@@ -105,6 +106,9 @@ func statusForCode(code string) int {
 	case ErrCodeInvalidClient:
 		// RFC 6749 5.2: the client failed to authenticate. 401, and the
 		// response must carry a WWW-Authenticate header.
+		return http.StatusUnauthorized
+	case ErrCodeInvalidToken:
+		// RFC 6750: an invalid bearer credential is an authentication failure.
 		return http.StatusUnauthorized
 	case ErrCodeAccessDenied:
 		return http.StatusForbidden

@@ -49,8 +49,8 @@ type Handlers struct {
 	MFAEnroll      http.Handler
 	Consent        http.Handler
 
-	// Account endpoints. Registration and reset are machine endpoints (JSON in and out);
-	// verification is a browser navigation from an emailed link.
+	// Account endpoints. Registration/reset submissions are machine endpoints (JSON in
+	// and out); recovery and verification pages are browser navigations.
 	UserRegister   http.Handler
 	EmailVerify    http.Handler
 	PasswordReset  http.Handler
@@ -237,9 +237,9 @@ func NewRouter(h Handlers, mw MiddlewareConfig) *Router {
 	api("/.well-known/jwks.json", http.MethodGet, h.JWKS, "")
 	api("/register", http.MethodPost, h.ClientRegister, "register")
 
-	// Account endpoints. Registration, reset request and reset completion are machine
-	// endpoints: JSON in, JSON out, no cookie. They are rate limited by the same key as
-	// dynamic registration because they are all unauthenticated write paths.
+	// Account API submissions are machine endpoints: JSON in, JSON out, no cookie.
+	// Registration, reset request and reset completion share a rate-limit key because
+	// they are all unauthenticated write paths.
 	api("/users/register", http.MethodPost, h.UserRegister, "register")
 	api("/forgot-password", http.MethodPost, h.ForgotPassword, "register")
 	api("/reset-password", http.MethodPost, h.ResetPassword, "register")
@@ -270,8 +270,10 @@ func NewRouter(h Handlers, mw MiddlewareConfig) *Router {
 	browser("/verify-email", h.EmailVerify, "")
 	browser("/users/verify-email", h.EmailVerify, "")
 
-	// The reset link's landing page is a GET; the reset itself is the machine POST
-	// registered above, so only the GET is registered here.
+	// Recovery forms are GET pages, while their submissions remain JSON machine
+	// endpoints above. The reset link's GET carries the one-time token into the page;
+	// its POST redeems that token at the same path.
+	page("/forgot-password", h.ForgotPassword)
 	page("/reset-password", h.PasswordReset)
 
 	// Administrative endpoints. The admin gate goes on AFTER the session middleware,

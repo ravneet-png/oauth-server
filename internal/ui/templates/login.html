@@ -1,4 +1,8 @@
 {{define "login"}}{{template "layout_head" .}}
+<div class="account-lead">
+  <span class="account-kicker">SECURE ACCESS</span>
+  <p class="account-copy">Sign in with your OAuth Server account to continue.</p>
+</div>
 {{if .ClientName}}
 <div class="notice">
   <p><strong>{{.ClientName}}</strong> wants to sign you in.</p>
@@ -31,6 +35,8 @@
 </form>
 
 <p class="links">
+  <a href="/forgot-password">Forgot password?</a>
+  <span aria-hidden="true"> &middot; </span>
   <a href="/signup{{if .AuthRequestID}}?auth_request_id={{.AuthRequestID}}{{end}}">Create an account</a>
   <span aria-hidden="true"> &middot; </span>
   <a href="/">Developer Console</a>

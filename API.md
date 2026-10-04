@@ -10,13 +10,15 @@ most OAuth server bugs.
 **Browser-interactive** — reached by top-level navigation or a form post from
 our own pages. Authenticated by a session cookie. CSRF-protected.
 
-`/authorize`, `/login`, `/mfa`, `/consent`
+`/authorize`, `/login`, `/mfa`, `/consent`, `/signup`, `/verify-email`,
+`GET /forgot-password`, and `GET /reset-password`
 
 **Machine** — called by a client or resource server. Authenticated by
 credentials in the request, never by a cookie. **Not** CSRF-protected.
 `Cache-Control: no-store` on every response.
 
-`/par`, `/token`, `/revoke`, `/introspect`, `/userinfo`, `/register`
+`/par`, `/token`, `/revoke`, `/introspect`, `/userinfo`, `/register`,
+`/users/register`, `POST /forgot-password`, and `POST /reset-password`
 
 **Public** — no authentication, no side effects beyond caching.
 
@@ -115,8 +117,9 @@ registered URI.
 
 ### `POST /par`
 
-Machine endpoint. Client authentication required. PKCE is **mandatory** — a
-request without `code_challenge` is rejected here, not later.
+Machine endpoint. Client authentication required. Public clients may authenticate
+with `client_id` only (`token_endpoint_auth_method=none`). PKCE is **mandatory** —
+a request without `code_challenge` is rejected here, not later.
 
 CORS applies.
 
@@ -262,7 +265,9 @@ Revoking a refresh token revokes the whole family.
 
 ### `POST /introspect`
 
-Machine endpoint. Client authentication required.
+Machine endpoint. Client authentication required. Public clients may use the
+registered `none` method and send `client_id` in the form body; as with every
+client, they receive active claims only for tokens belonging to themselves.
 
 ```bash
 curl -u client_id:client_secret http://localhost:8080/introspect \
@@ -353,7 +358,49 @@ performs the same password hashing on both branches.
 
 ### `GET /users/verify-email?token=...`
 
-Consumes the token atomically and marks the address verified.
+Consumes the token atomically and marks the address verified. `/verify-email` is an
+alias used in generated mail links.
+
+---
+
+## Password recovery
+
+The account pages link to `GET /forgot-password` and render the one-time reset form
+at `GET /reset-password?token=...`. Those GET routes are HTML pages; submissions
+use the JSON machine endpoints below. The browser UI removes the reset token from
+the address bar and does not persist it in browser storage.
+
+### `POST /forgot-password`
+
+Public JSON endpoint. Rate limited. The response is enumeration-safe and does not
+depend on whether the email address exists:
+
+```bash
+curl -X POST http://localhost:8080/forgot-password \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"user@example.com"}'
+```
+
+Returns `202 Accepted` with the same message for unknown and registered addresses.
+A reset link is emailed only when an eligible account exists.
+
+### `POST /reset-password`
+
+Public JSON endpoint that redeems a one-time reset token, sets the new password,
+and revokes the account's existing sessions and refresh tokens:
+
+```bash
+curl -X POST http://localhost:8080/reset-password \
+  -H 'Content-Type: application/json' \
+  -d '{"token":"<one-time-token>","password":"a-new-long-password"}'
+```
+
+A successful reset returns `200`. An unknown, expired, used, or wrong-purpose
+token returns `401` with `{"error":"invalid_token"}`; all unusable tokens have
+the same response. The password must meet the configured minimum length.
+
+This is account recovery, not the OAuth resource-owner password grant. The
+`grant_type=password` flow remains unsupported.
 
 ---
 
@@ -431,6 +478,7 @@ Every error response is:
 |---|---|---|
 | `invalid_request` | 400 | Missing, repeated or malformed parameter |
 | `invalid_client` | 401 | Client authentication failed |
+| `invalid_token` | 401 | Bearer or one-time reset token is invalid |
 | `invalid_grant` | 400 | Code, refresh token, or PKCE verification failed |
 | `unauthorized_client` | 400 | Client is not permitted to use this grant type |
 | `unsupported_grant_type` | 400 | `implicit`, `password`, or anything unknown |
@@ -453,7 +501,7 @@ Every error response is:
 | Endpoint | Form |
 |---|---|
 | `/authorize`, `/login`, `/mfa`, `/consent` | Query parameters on the validated `redirect_uri`, plus `state` and `iss` |
-| `/token`, `/revoke`, `/introspect`, `/par`, `/register` | JSON body |
+| `/token`, `/revoke`, `/introspect`, `/par`, `/register`, `/users/register`, `/forgot-password`, `/reset-password` | JSON body |
 | Before `redirect_uri` is validated at `/authorize` | JSON body, because there is nowhere safe to redirect to |
 
 `error_description` never contains a client secret, token, or anything that

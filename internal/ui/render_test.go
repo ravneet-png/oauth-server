@@ -7,6 +7,7 @@ package ui
 // break out of an attribute. A full browser test belongs in test/integration.
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -70,6 +71,14 @@ func TestEveryPageRenders(t *testing.T) {
 			Success:  true,
 			LoginURL: "/login",
 		}},
+		{PageForgotPassword, ForgotPasswordData{
+			Base: Base{Nonce: "n1", Title: "Forgot your password?"},
+		}},
+		{PagePasswordReset, PasswordResetData{
+			Base:           Base{Nonce: "n1", Title: "Reset your password"},
+			Token:          "reset-token-123",
+			MinPasswordLen: 12,
+		}},
 		{PageError, ErrorData{
 			Base: Base{Nonce: "n1", Title: "Something went wrong", RequestID: "req-abc"},
 			Code: "invalid_request",
@@ -94,13 +103,17 @@ func TestEveryPageRenders(t *testing.T) {
 			UserName:      "Alice",
 		}},
 		{PageCallback, CallbackData{
-			Base:         Base{Nonce: "n1", Title: "OAuth 2.1 Callback & Token Inspector"},
-			Issuer:       "http://localhost:8080",
-			DemoClientID: "demo-client",
-			CallbackURL:  "http://localhost:8080/callback",
-			Code:         "code-123",
-			State:        "xyz123",
-			ReturnedIss:  "http://localhost:8080",
+			Base:          Base{Nonce: "n1", Title: "OAuth 2.1 Callback & Token Inspector"},
+			Issuer:        "http://localhost:8080",
+			DemoClientID:  "demo-client",
+			CallbackURL:   "http://localhost:8080/callback",
+			Code:          "code-123",
+			CodePresent:   true,
+			State:         "xyz123",
+			StatePresent:  true,
+			ReturnedIss:   "http://localhost:8080",
+			IssuerPresent: true,
+			ResponseValid: true,
 		}},
 	}
 
@@ -294,6 +307,9 @@ func TestCallerSuppliedValuesAreEscaped(t *testing.T) {
 		{"flash message", PageLogin, LoginData{
 			Base: Base{Nonce: "n", Title: "Sign in", Flash: hostile},
 		}},
+		{"reset token", PagePasswordReset, PasswordResetData{
+			Base: Base{Nonce: "n", Title: "Reset your password"}, Token: hostile, MinPasswordLen: 12,
+		}},
 		{"error code", PageError, ErrorData{
 			Base: Base{Nonce: "n", Title: "Error"}, Code: hostile,
 		}},
@@ -452,5 +468,120 @@ func TestRenderPageRejectsANilRenderer(t *testing.T) {
 	w := httptest.NewRecorder()
 	if err := RenderPage(w, nil, PageLogin, http.StatusOK, LoginData{}); err == nil {
 		t.Error("RenderPage accepted a nil renderer")
+	}
+}
+
+func TestRecoveryPagesRenderTheirExistingAPIFlows(t *testing.T) {
+	r := newTestRenderer(t)
+
+	forgot := httptest.NewRecorder()
+	if err := r.Render(forgot, PageForgotPassword, http.StatusOK, ForgotPasswordData{
+		Base: Base{Nonce: "n-forgot", Title: "Forgot your password?"},
+	}); err != nil {
+		t.Fatalf("render forgot password page: %v", err)
+	}
+	for _, want := range []string{"id=\"forgot-password-form\"", "id=\"forgot-password-email\"", "/assets/playground.js"} {
+		if !strings.Contains(forgot.Body.String(), want) {
+			t.Errorf("forgot-password page does not contain %q", want)
+		}
+	}
+
+	reset := httptest.NewRecorder()
+	if err := r.Render(reset, PagePasswordReset, http.StatusOK, PasswordResetData{
+		Base:           Base{Nonce: "n-reset", Title: "Reset your password"},
+		Token:          "one-time-reset-token",
+		MinPasswordLen: 12,
+	}); err != nil {
+		t.Fatalf("render reset password page: %v", err)
+	}
+	for _, want := range []string{"id=\"password-reset-form\"", "one-time-reset-token", "data-min-password-length=\"12\"", "/assets/playground.js"} {
+		if !strings.Contains(reset.Body.String(), want) {
+			t.Errorf("password-reset page does not contain %q", want)
+		}
+	}
+}
+
+func TestCallbackInspectorDoesNotClaimJWTVerification(t *testing.T) {
+	r := newTestRenderer(t)
+	w := httptest.NewRecorder()
+	if err := r.Render(w, PageCallback, http.StatusOK, CallbackData{
+		Base:          Base{Nonce: "n-callback", Title: "Callback"},
+		Issuer:        "https://auth.example.com",
+		DemoClientID:  "demo-client",
+		CallbackURL:   "https://auth.example.com/callback",
+		Code:          "code-1",
+		CodePresent:   true,
+		State:         "state-1",
+		StatePresent:  true,
+		ReturnedIss:   "https://auth.example.com",
+		IssuerPresent: true,
+		ResponseValid: true,
+	}); err != nil {
+		t.Fatalf("render callback page: %v", err)
+	}
+	if strings.Contains(w.Body.String(), "RS256 verified") {
+		t.Error("callback template claims RS256 was verified")
+	}
+	if !strings.Contains(w.Body.String(), "does not verify the token signature") {
+		t.Error("callback template does not clearly say JWT signatures are not verified")
+	}
+
+	fsys, err := StaticFS()
+	if err != nil {
+		t.Fatalf("StaticFS: %v", err)
+	}
+	js, err := fsys.Open("playground.js")
+	if err != nil {
+		t.Fatalf("open playground.js: %v", err)
+	}
+	defer js.Close()
+	contents, err := io.ReadAll(js)
+	if err != nil {
+		t.Fatalf("read playground.js: %v", err)
+	}
+	if strings.Contains(string(contents), "RS256 verified") {
+		t.Error("callback script claims RS256 was verified")
+	}
+	if !strings.Contains(string(contents), "signature and claims are not verified here") {
+		t.Error("callback script does not label decoded JWT claims as unverified")
+	}
+}
+
+func TestAccountConsoleDoesNotExposeClientRegistrationOrPersistSecrets(t *testing.T) {
+	r := newTestRenderer(t)
+	w := httptest.NewRecorder()
+	if err := r.Render(w, PageHome, http.StatusOK, HomeData{
+		Base:         Base{Nonce: "n-home", Title: "OAuth 2.1 Developer Console"},
+		Issuer:       "https://auth.example.com",
+		DemoClientID: "demo-client",
+		CallbackURL:  "https://auth.example.com/callback",
+	}); err != nil {
+		t.Fatalf("render home page: %v", err)
+	}
+	body := w.Body.String()
+	for _, want := range []string{"data-par-endpoint=\"/par\"", "id=\"client-credentials-btn\"", "client_credentials"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("developer console does not expose %q", want)
+		}
+	}
+	if strings.Contains(body, "/register") {
+		t.Error("developer console unexpectedly exposes dynamic client registration")
+	}
+
+	fsys, err := StaticFS()
+	if err != nil {
+		t.Fatalf("StaticFS: %v", err)
+	}
+	js, err := fsys.Open("playground.js")
+	if err != nil {
+		t.Fatalf("open playground.js: %v", err)
+	}
+	defer js.Close()
+	contents, err := io.ReadAll(js)
+	if err != nil {
+		t.Fatalf("read playground.js: %v", err)
+	}
+	if strings.Contains(string(contents), "localStorage.setItem") || strings.Contains(string(contents), "sessionStorage.setItem(\"oauth_client_secret") {
+		t.Error("browser script appears to persist a client secret")
 	}
 }

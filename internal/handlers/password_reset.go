@@ -30,25 +30,39 @@ type resetPasswordRequest struct {
 	NewPassword string `json:"password"`
 }
 
-// PasswordResetPage renders guidance at the path the emailed link points at.
+// PasswordResetPage renders the one-time reset form at the path in the email.
 //
-// The link must resolve to something, but the reset itself is submitted by the
-// application over the JSON endpoint. A dead end here would make a correctly issued
-// reset look broken, which is the one thing a recovery link must never do.
+// The token is carried in the page only long enough for its same-origin script to submit
+// it to POST /reset-password. The script removes it from the address bar and never puts
+// it in browser storage.
 func (d *Deps) PasswordResetPage(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		httpapi.MethodNotAllowed(w, http.MethodGet)
 		return
 	}
-	base := d.base(r, "Reset your password")
-	base.Error = "Open this page from the application to choose a new password. The link itself is only valid once."
-	d.render(w, r, ui.PageError, http.StatusOK, ui.ErrorData{Base: base, Code: "reset_required"})
+	values := r.URL.Query()["token"]
+	token := ""
+	if len(values) == 1 {
+		token = values[0]
+	}
+	d.render(w, r, ui.PagePasswordReset, http.StatusOK, ui.PasswordResetData{
+		Base:           d.base(r, "Reset your password"),
+		Token:          token,
+		MinPasswordLen: d.minPasswordLen(),
+	})
 }
 
-// ForgotPassword handles a reset request.
+// ForgotPassword serves the recovery form on GET and issues a reset request on POST.
+// The POST response remains uniform for existing, unknown, and malformed addresses.
 func (d *Deps) ForgotPassword(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		d.render(w, r, ui.PageForgotPassword, http.StatusOK, ui.ForgotPasswordData{
+			Base: d.base(r, "Forgot your password?"),
+		})
+		return
+	}
 	if r.Method != http.MethodPost {
-		httpapi.MethodNotAllowed(w, http.MethodPost)
+		httpapi.MethodNotAllowed(w, http.MethodGet, http.MethodPost)
 		return
 	}
 	var req forgotPasswordRequest
@@ -93,8 +107,10 @@ func (d *Deps) ResetPassword(w http.ResponseWriter, r *http.Request) {
 	err := email.CompleteReset(r.Context(), d.resetParams(), req.Token, req.NewPassword)
 	if err != nil {
 		if errors.Is(err, email.ErrResetTokenInvalid) {
-			// One response for unknown, expired, used and wrong-purpose tokens.
-			httpapi.JSON(w, http.StatusBadRequest, map[string]string{"error": "invalid_token"})
+			// One response for unknown, expired, used and wrong-purpose tokens. Invalid
+			// credentials are 401 so browser clients and OAuth clients map the token
+			// failure consistently.
+			httpapi.JSON(w, http.StatusUnauthorized, map[string]string{"error": domain.ErrCodeInvalidToken})
 			return
 		}
 		d.Logger.Error("reset_password: complete", "error", err.Error(), "correlation_id", d.state(r).correlationID)

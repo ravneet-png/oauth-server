@@ -1,5 +1,9 @@
 {{define "register"}}{{template "layout_head" .}}
-<form method="post" action="/signup" class="form">
+<div class="account-lead">
+  <span class="account-kicker">CREATE AN ACCOUNT</span>
+  <p class="account-copy">One account for secure sign-in and consent-managed access.</p>
+</div>
+<form method="post" action="/signup" class="form" autocomplete="on">
   <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
   {{if .AuthRequestID}}<input type="hidden" name="auth_request_id" value="{{.AuthRequestID}}">{{end}}
   {{if .ClientID}}<input type="hidden" name="client_id" value="{{.ClientID}}">{{end}}
@@ -8,6 +12,7 @@
     <span class="field__label">Email address</span>
     <input class="field__input" type="email" name="email" value="{{.Email}}"
            autocomplete="username" inputmode="email" required autofocus>
+    <span class="field__hint">We’ll send a verification link to this address.</span>
   </label>
 
   <label class="field">
@@ -25,7 +30,7 @@
   <label class="field">
     <span class="field__label">Confirm password</span>
     <input class="field__input" type="password" name="password_confirm"
-           autocomplete="new-password" required>
+           autocomplete="new-password" required minlength="{{.MinPasswordLen}}">
   </label>
 
   <button class="button button--primary" type="submit">Create account</button>

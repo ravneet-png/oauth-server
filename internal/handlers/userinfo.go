@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 
+	"oauth-server/internal/domain"
 	"oauth-server/internal/httpapi"
 	"oauth-server/internal/oautherr"
 	"oauth-server/internal/tokens"
@@ -30,13 +31,13 @@ func (d *Deps) UserInfo(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		// RFC 6750 section 3: a request with no credentials gets 401 and a challenge
 		// that tells the caller which scheme to use.
-		unauthorizedBearer(w, "invalid_token", "a bearer access token is required")
+		unauthorizedBearer(w, domain.ErrCodeInvalidToken, "a bearer access token is required")
 		return
 	}
 
 	tok, err := d.Verifier.Verify(r.Context(), bearer, tokens.TypeJWT)
 	if err != nil {
-		unauthorizedBearer(w, "invalid_token", "the access token is not valid")
+		unauthorizedBearer(w, domain.ErrCodeInvalidToken, "the access token is not valid")
 		return
 	}
 
@@ -46,13 +47,13 @@ func (d *Deps) UserInfo(w http.ResponseWriter, r *http.Request) {
 	// endpoint as `aud`, so that is the value this endpoint expects, with the issuer
 	// accepted for tokens issued by an older builder that carried no audience.
 	if !audienceContains(tok, d.Config.TokenEndpoint) && !audienceContains(tok, d.Config.Issuer) {
-		unauthorizedBearer(w, "invalid_token", "the access token was not issued for this endpoint")
+		unauthorizedBearer(w, domain.ErrCodeInvalidToken, "the access token was not issued for this endpoint")
 		return
 	}
 
 	userID := tok.Subject()
 	if userID == "" {
-		unauthorizedBearer(w, "invalid_token", "the access token has no subject")
+		unauthorizedBearer(w, domain.ErrCodeInvalidToken, "the access token has no subject")
 		return
 	}
 
@@ -61,11 +62,11 @@ func (d *Deps) UserInfo(w http.ResponseWriter, r *http.Request) {
 		// A token for a deleted user is no longer usable. Report it as an invalid
 		// token rather than a server error: from the resource server's point of view
 		// the credential is simply not good any more.
-		unauthorizedBearer(w, "invalid_token", "the access token is not valid")
+		unauthorizedBearer(w, domain.ErrCodeInvalidToken, "the access token is not valid")
 		return
 	}
 	if user.DisabledAt != nil {
-		unauthorizedBearer(w, "invalid_token", "the access token is not valid")
+		unauthorizedBearer(w, domain.ErrCodeInvalidToken, "the access token is not valid")
 		return
 	}
 

@@ -1,14 +1,25 @@
 {{define "home"}}{{template "layout_head" .}}
-<div class="console" data-issuer="{{.Issuer}}" data-client-id="{{.DemoClientID}}" data-callback-url="{{.CallbackURL}}">
-  <div class="console__banner">
-    <span class="badge badge--success">● Online &middot; OAuth 2.1 + OIDC</span>
-    <span class="badge">Issuer: <code>{{.Issuer}}</code></span>
-    {{if .ActiveKeyID}}<span class="badge">Active Key: <code>{{.ActiveKeyID}}</code></span>{{end}}
-  </div>
+<div class="console account-page account-page--console" id="developer-console"
+     data-issuer="{{.Issuer}}"
+     data-client-id="{{.DemoClientID}}"
+     data-callback-url="{{.CallbackURL}}"
+     data-par-endpoint="/par">
+  <header class="account-page__intro">
+    <div>
+      <span class="account-kicker">OAUTH SERVER · DEVELOPER WORKSPACE</span>
+      <p class="account-copy">Explore the server’s existing authorization, token, and account-recovery flows.</p>
+    </div>
+    <div class="console__banner">
+      <span class="badge badge--success">● Online</span>
+      <span class="badge">Issuer <code>{{.Issuer}}</code></span>
+      {{if .ActiveKeyID}}<span class="badge">Signing key <code>{{.ActiveKeyID}}</code></span>{{end}}
+    </div>
+  </header>
 
   <div class="console__grid">
-    <section class="panel">
-      <h2 class="panel__title">1. Identity &amp; Session State</h2>
+    <section class="panel panel--account">
+      <div class="panel__eyebrow">YOUR ACCOUNT</div>
+      <h2 class="panel__title">Identity &amp; session</h2>
       {{if .Authenticated}}
       <div class="kv-list">
         <div class="kv-row">
@@ -16,88 +27,119 @@
           <span class="kv-value"><strong>{{if .UserName}}{{.UserName}} ({{.UserEmail}}){{else}}{{.UserEmail}}{{end}}</strong></span>
         </div>
         <div class="kv-row">
-          <span class="kv-label">Subject (<code>sub</code>)</span>
+          <span class="kv-label">Subject <code>sub</code></span>
           <span class="kv-value"><code>{{.UserID}}</code></span>
         </div>
         <div class="kv-row">
-          <span class="kv-label">Email Verified</span>
+          <span class="kv-label">Email</span>
           <span class="kv-value">
-            {{if .EmailVerified}}
-              <span class="badge badge--success">Verified</span>
-            {{else}}
-              <span class="badge badge--warn">Unverified</span>
-            {{end}}
+            {{if .EmailVerified}}<span class="badge badge--success">Verified</span>{{else}}<span class="badge badge--warn">Unverified</span>{{end}}
           </span>
         </div>
         <div class="kv-row">
-          <span class="kv-label">Two-Factor (TOTP)</span>
+          <span class="kv-label">Two-factor authentication</span>
           <span class="kv-value">
-            {{if .MFAEnabled}}
-              <span class="badge badge--success">Enabled</span>
-            {{else}}
-              <span class="badge">Not enrolled</span>
-            {{end}}
+            {{if .MFAEnabled}}<span class="badge badge--success">Enabled</span>{{else}}<span class="badge">Not enrolled</span>{{end}}
           </span>
         </div>
       </div>
-
       {{if not .EmailVerified}}
       <form method="post" action="/signup/verify-dev" class="inline-form">
         <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-        <button type="submit" class="button button--primary button--sm">Verify Email Instantly (1-Click)</button>
-        <span class="field__hint">Or open Mailpit at <code>http://localhost:8025</code> to click the emailed link.</span>
+        <button type="submit" class="button button--secondary button--sm">Verify email in development</button>
+        <span class="field__hint">Or use the verification link delivered to Mailpit.</span>
       </form>
       {{end}}
-
       <div class="button-row">
-        {{if not .MFAEnabled}}<a class="button button--secondary" href="/mfa/enroll">Enroll 2FA (TOTP)</a>{{end}}
+        {{if not .MFAEnabled}}<a class="button button--secondary" href="/mfa/enroll">Set up two-factor</a>{{end}}
         <a class="button button--secondary" href="/logout">Sign out</a>
       </div>
       {{else}}
-      <p class="muted">No active browser session. Create a test account or sign in—or launch the OAuth 2.1 flow directly to be prompted automatically.</p>
+      <p class="muted">No active browser session. Sign in or create an account before starting an authorization flow.</p>
       <div class="button-row">
-        <a class="button button--primary" href="/signup">Create Account</a>
-        <a class="button button--secondary" href="/login">Sign In</a>
+        <a class="button button--primary" href="/signup">Create account</a>
+        <a class="button button--secondary" href="/login">Sign in</a>
       </div>
       {{end}}
     </section>
 
-    <section class="panel">
-      <h2 class="panel__title">2. Interactive OAuth 2.1 + PKCE Flow</h2>
-      <p class="muted">Pre-configured public client <code>{{.DemoClientID}}</code> with mandatory <code>S256</code> PKCE.</p>
+    <section class="panel panel--account">
+      <div class="panel__eyebrow">AUTHORIZATION CODE + PKCE</div>
+      <h2 class="panel__title">Start a sign-in flow</h2>
+      <p class="muted">Uses the public <code>{{.DemoClientID}}</code> client, authorization code, and mandatory S256 PKCE.</p>
 
-      <div class="field">
-        <span class="field__label">Requested Scopes</span>
+      <fieldset class="scope-fieldset">
+        <legend class="field__label">Requested scopes</legend>
         <div class="scope-chips">
           <label class="chip"><input type="checkbox" class="js-scope" value="openid" checked> <span>openid</span></label>
           <label class="chip"><input type="checkbox" class="js-scope" value="profile" checked> <span>profile</span></label>
           <label class="chip"><input type="checkbox" class="js-scope" value="email" checked> <span>email</span></label>
           <label class="chip"><input type="checkbox" class="js-scope" value="offline_access" checked> <span>offline_access</span></label>
         </div>
-      </div>
+      </fieldset>
+
+      <label class="field field--inline flow-option">
+        <input type="checkbox" id="use-par" checked>
+        <span>Push the request to <code>POST /par</code> before redirecting</span>
+      </label>
 
       <div class="field">
-        <span class="field__label">PKCE <code>code_verifier</code> &rarr; <code>S256 code_challenge</code></span>
-        <pre class="code-box" id="pkce-preview">Generating WebCrypto S256 PKCE parameters...</pre>
+        <span class="field__label">PKCE preview</span>
+        <pre class="code-box" id="pkce-preview" aria-live="polite">Generating a cryptographically random PKCE pair…</pre>
+        <span class="field__hint">The verifier is held in this tab’s session storage until the callback. No client secret is used.</span>
       </div>
 
       <div class="button-row">
-        <a id="launch-authorize-btn" class="button button--primary" href="/authorize?response_type=code&amp;client_id={{.DemoClientID}}&amp;redirect_uri={{.CallbackURL}}&amp;scope=openid+profile+email+offline_access&amp;state=xyz123&amp;nonce=n123&amp;code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&amp;code_challenge_method=S256">Launch OAuth 2.1 Authorize Flow &rarr;</a>
-        <button type="button" id="regen-pkce-btn" class="button button--secondary">New PKCE Pair</button>
+        <button type="button" id="launch-authorize-btn" class="button button--primary" disabled>Launch authorization flow</button>
+        <button type="button" id="regen-pkce-btn" class="button button--secondary">New PKCE pair</button>
       </div>
+      <p class="flow-status" id="flow-status" role="status" aria-live="polite"></p>
     </section>
   </div>
 
-  <section class="panel panel--full">
+  <section class="panel panel--account panel--full">
+    <div class="panel__eyebrow">CONFIDENTIAL CLIENT TEST</div>
     <div class="panel__header">
-      <h2 class="panel__title">3. Live Protocol &amp; Metadata Inspector</h2>
-      <div class="button-row button-row--tight">
-        <button type="button" class="button button--secondary button--sm js-inspect-btn" data-endpoint="/.well-known/openid-configuration">OIDC Discovery</button>
-        <button type="button" class="button button--secondary button--sm js-inspect-btn" data-endpoint="/.well-known/jwks.json">JWKS Public Keys</button>
-        <button type="button" class="button button--secondary button--sm js-inspect-btn" data-endpoint="/health">Health Check</button>
+      <div>
+        <h2 class="panel__title">Client credentials grant</h2>
+        <p class="muted">Calls the existing <code>POST /token</code> client-credentials flow. It requires a confidential client already registered for <code>client_credentials</code>; the public demo client cannot use this grant.</p>
       </div>
     </div>
-    <pre class="code-box code-box--tall" id="inspector-output">Click any endpoint button above to inspect live server responses.</pre>
+    <div class="credentials-grid">
+      <label class="field">
+        <span class="field__label">Confidential client ID</span>
+        <input class="field__input" id="client-credentials-id" type="text" autocomplete="off" autocapitalize="none" spellcheck="false">
+      </label>
+      <label class="field">
+        <span class="field__label">Client secret</span>
+        <input class="field__input" id="client-credentials-secret" type="password" autocomplete="off" autocapitalize="none" spellcheck="false">
+      </label>
+      <label class="field">
+        <span class="field__label">Scopes <span class="field__optional">(optional)</span></span>
+        <input class="field__input" id="client-credentials-scope" type="text" autocomplete="off" placeholder="read write">
+      </label>
+    </div>
+    <p class="field__hint">For local testing only: enter a throwaway client credential for one request. The page does not save secrets to local or session storage and clears the fields after submission. A browser cannot protect a confidential client secret; use server-to-server authentication in production. The OAuth password grant is not implemented.</p>
+    <div class="button-row">
+      <button type="button" id="client-credentials-btn" class="button button--secondary">Request client-credentials token</button>
+    </div>
+    <pre class="code-box code-box--tall" id="client-credentials-output" aria-live="polite">A token response will appear here after the request.</pre>
+  </section>
+
+  <section class="panel panel--account panel--full">
+    <div class="panel__eyebrow">SERVER METADATA</div>
+    <div class="panel__header">
+      <div>
+        <h2 class="panel__title">Protocol &amp; metadata inspector</h2>
+        <p class="muted">Read the server’s published discovery, signing keys, and health response.</p>
+      </div>
+      <div class="button-row button-row--tight">
+        <button type="button" class="button button--secondary button--sm js-inspect-btn" data-endpoint="/.well-known/openid-configuration">Discovery</button>
+        <button type="button" class="button button--secondary button--sm js-inspect-btn" data-endpoint="/.well-known/jwks.json">JWKS</button>
+        <button type="button" class="button button--secondary button--sm js-inspect-btn" data-endpoint="/health">Health</button>
+      </div>
+    </div>
+    <pre class="code-box code-box--tall" id="inspector-output" aria-live="polite">Choose an endpoint to inspect its live response.</pre>
   </section>
 </div>
 <script nonce="{{.Nonce}}" src="/assets/playground.js"></script>

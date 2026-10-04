@@ -288,6 +288,7 @@ func TestErrorConstructors(t *testing.T) {
 	}{
 		{name: "invalid_request", err: NewInvalidRequest("d"), wantCode: ErrCodeInvalidRequest, wantStatus: http.StatusBadRequest},
 		{name: "invalid_client", err: NewInvalidClient("d"), wantCode: ErrCodeInvalidClient, wantStatus: http.StatusUnauthorized},
+		{name: "invalid_token", err: NewOAuthError(ErrCodeInvalidToken, "d"), wantCode: ErrCodeInvalidToken, wantStatus: http.StatusUnauthorized},
 		{name: "invalid_grant", err: NewInvalidGrant("d"), wantCode: ErrCodeInvalidGrant, wantStatus: http.StatusBadRequest},
 		{name: "unauthorized_client", err: NewUnauthorizedClient("d"), wantCode: ErrCodeUnauthorizedClient, wantStatus: http.StatusBadRequest},
 		{name: "unsupported_grant_type", err: NewUnsupportedGrantType("d"), wantCode: ErrCodeUnsupportedGrantType, wantStatus: http.StatusBadRequest},
@@ -328,6 +329,7 @@ func TestNewOAuthErrorMapsStatus(t *testing.T) {
 		wantStatus int
 	}{
 		{code: ErrCodeInvalidClient, wantStatus: http.StatusUnauthorized},
+		{code: ErrCodeInvalidToken, wantStatus: http.StatusUnauthorized},
 		{code: ErrCodeAccessDenied, wantStatus: http.StatusForbidden},
 		{code: ErrCodeServerError, wantStatus: http.StatusInternalServerError},
 		{code: ErrCodeTemporarilyUnavailable, wantStatus: http.StatusServiceUnavailable},

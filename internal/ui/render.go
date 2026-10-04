@@ -230,6 +230,23 @@ type VerifyEmailData struct {
 	NextStepURL string
 }
 
+// ForgotPasswordData renders forgot_password.html.
+type ForgotPasswordData struct {
+	Base
+}
+
+// PasswordResetData renders password_reset.html.
+type PasswordResetData struct {
+	Base
+
+	// Token is a one-time bearer token from the emailed reset link. It is rendered
+	// only into the page that redeems it and is never retained by the server-side
+	// renderer.
+	Token string
+
+	MinPasswordLen int
+}
+
 // ErrorData renders error.html.
 type ErrorData struct {
 	Base
@@ -273,14 +290,19 @@ type HomeData struct {
 type CallbackData struct {
 	Base
 
-	Issuer       string
-	DemoClientID string
-	CallbackURL  string
-	Code         string
-	State        string
-	ReturnedIss  string
-	OAuthError   string
-	OAuthDesc    string
+	Issuer            string
+	DemoClientID      string
+	CallbackURL       string
+	Code              string
+	CodePresent       bool
+	State             string
+	StatePresent      bool
+	ReturnedIss       string
+	IssuerPresent     bool
+	OAuthError        string
+	OAuthErrorPresent bool
+	OAuthDesc         string
+	ResponseValid     bool
 }
 
 // StaticFS returns the static asset filesystem.
@@ -295,17 +317,19 @@ func StaticFS() (fs.FS, error) {
 // Page names. Passed to RenderPage as a string so a handler names the page it wants
 // rather than choosing a template out of a bag of functions.
 const (
-	PageLogin        = "login"
-	PageRegister     = "register"
-	PageConsent      = "consent"
-	PageMFAChallenge = "mfa_challenge"
-	PageMFAEnroll    = "mfa_enroll"
-	PageVerifyEmail  = "verify_email"
-	PageError        = "error"
-	PageLoggedOut    = "logged_out"
-	PageUnauthorized = "unauthorized"
-	PageHome         = "home"
-	PageCallback     = "callback"
+	PageLogin          = "login"
+	PageRegister       = "register"
+	PageConsent        = "consent"
+	PageMFAChallenge   = "mfa_challenge"
+	PageMFAEnroll      = "mfa_enroll"
+	PageVerifyEmail    = "verify_email"
+	PageForgotPassword = "forgot_password"
+	PagePasswordReset  = "password_reset"
+	PageError          = "error"
+	PageLoggedOut      = "logged_out"
+	PageUnauthorized   = "unauthorized"
+	PageHome           = "home"
+	PageCallback       = "callback"
 )
 
 // Render writes a page with security headers.
@@ -395,6 +419,10 @@ func nonceOf(data any) string {
 		return d.Nonce
 	case VerifyEmailData:
 		return d.Nonce
+	case ForgotPasswordData:
+		return d.Nonce
+	case PasswordResetData:
+		return d.Nonce
 	case ErrorData:
 		return d.Nonce
 	case LoggedOutData:
@@ -430,6 +458,10 @@ func correlationID(data any) string {
 	case MFAEnrollData:
 		return d.RequestID
 	case VerifyEmailData:
+		return d.RequestID
+	case ForgotPasswordData:
+		return d.RequestID
+	case PasswordResetData:
 		return d.RequestID
 	case ErrorData:
 		return d.RequestID
