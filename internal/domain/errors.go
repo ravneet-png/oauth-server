@@ -23,7 +23,6 @@ import (
 const (
 	ErrCodeInvalidRequest          = "invalid_request"
 	ErrCodeInvalidClient           = "invalid_client"
-	// ErrCodeInvalidToken is the RFC 6750 bearer-token failure code.
 	ErrCodeInvalidToken            = "invalid_token"
 	ErrCodeInvalidGrant            = "invalid_grant"
 	ErrCodeUnauthorizedClient      = "unauthorized_client"

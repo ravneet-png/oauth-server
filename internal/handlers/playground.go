@@ -68,10 +68,10 @@ func (d *Deps) Callback(w http.ResponseWriter, r *http.Request) {
 
 	q, parseErr := url.ParseQuery(r.URL.RawQuery)
 	data := ui.CallbackData{
-		Base:         d.base(r, "OAuth 2.1 Callback & Token Inspector"),
-		Issuer:       d.Config.Issuer,
-		DemoClientID: demoClientID,
-		CallbackURL:  strings.TrimRight(d.Config.Issuer, "/") + "/callback",
+		Base:          d.base(r, "OAuth 2.1 Callback & Token Inspector"),
+		Issuer:        d.Config.Issuer,
+		DemoClientID:  demoClientID,
+		CallbackURL:   strings.TrimRight(d.Config.Issuer, "/") + "/callback",
 		ResponseValid: parseErr == nil,
 	}
 	readSingle := func(name string) (string, bool) {
