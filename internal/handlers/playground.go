@@ -4,6 +4,7 @@ package handlers
 
 import (
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -27,12 +28,12 @@ func (d *Deps) Home(w http.ResponseWriter, r *http.Request) {
 	}
 
 	st := d.state(r)
-	issuer := strings.TrimRight(d.Config.Issuer, "/")
+	issuer := d.Config.Issuer
 	data := ui.HomeData{
 		Base:         d.base(r, "OAuth 2.1 Developer Console"),
 		Issuer:       issuer,
 		DemoClientID: demoClientID,
-		CallbackURL:  issuer + "/callback",
+		CallbackURL:  strings.TrimRight(issuer, "/") + "/callback",
 	}
 	if d.Keys != nil {
 		if active, err := d.Keys.GetSigningKey(); err == nil && active != nil {
@@ -54,25 +55,47 @@ func (d *Deps) Home(w http.ResponseWriter, r *http.Request) {
 	d.render(w, r, ui.PageHome, http.StatusOK, data)
 }
 
-// Callback renders GET /callback — the interactive OAuth 2.1 redirect_uri receiver and token inspector.
+// Callback renders GET /callback — the OAuth redirect receiver and token inspector.
+//
+// Security-critical response parameters are read as singletons. Ambiguous duplicate
+// code, state, issuer, or error values are rejected by the browser UI before a token
+// exchange can occur.
 func (d *Deps) Callback(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		httpapi.MethodNotAllowed(w, http.MethodGet)
 		return
 	}
 
-	q := r.URL.Query()
-	issuer := strings.TrimRight(d.Config.Issuer, "/")
+	q, parseErr := url.ParseQuery(r.URL.RawQuery)
 	data := ui.CallbackData{
 		Base:         d.base(r, "OAuth 2.1 Callback & Token Inspector"),
-		Issuer:       issuer,
+		Issuer:       d.Config.Issuer,
 		DemoClientID: demoClientID,
-		CallbackURL:  issuer + "/callback",
-		Code:         q.Get("code"),
-		State:        q.Get("state"),
-		ReturnedIss:  q.Get("iss"),
-		OAuthError:   q.Get("error"),
-		OAuthDesc:    q.Get("error_description"),
+		CallbackURL:  strings.TrimRight(d.Config.Issuer, "/") + "/callback",
+		ResponseValid: parseErr == nil,
+	}
+	readSingle := func(name string) (string, bool) {
+		values, present := q[name]
+		if len(values) > 1 {
+			data.ResponseValid = false
+			return "", present
+		}
+		if !present || len(values) == 0 {
+			return "", false
+		}
+		return values[0], true
+	}
+
+	data.Code, data.CodePresent = readSingle("code")
+	data.State, data.StatePresent = readSingle("state")
+	data.ReturnedIss, data.IssuerPresent = readSingle("iss")
+	data.OAuthError, data.OAuthErrorPresent = readSingle("error")
+	data.OAuthDesc, _ = readSingle("error_description")
+	if data.CodePresent && data.OAuthErrorPresent {
+		data.ResponseValid = false
+	}
+	if _, hasErrorDescription := q["error_description"]; hasErrorDescription && !data.OAuthErrorPresent {
+		data.ResponseValid = false
 	}
 
 	d.render(w, r, ui.PageCallback, http.StatusOK, data)

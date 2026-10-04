@@ -10,7 +10,59 @@ import (
 	"testing"
 
 	"oauth-server/internal/crypto"
+	"oauth-server/test/fixtures"
 )
+
+func TestPARPublicClientRequestCanBeUsedAtAuthorize(t *testing.T) {
+	e := newEnv(t)
+	client := fixtures.PublicClient(
+		"public-par-ui", "Public PAR Playground",
+		[]string{testRedirectURI},
+		[]string{"authorization_code", "refresh_token"},
+		[]string{"openid", "profile", "email", "offline_access"},
+	)
+	if err := e.App.Deps.Clients.Create(context.Background(), client); err != nil {
+		t.Fatalf("create public client: %v", err)
+	}
+
+	verifier := "public-par-ui-verifier-long-enough-for-s256-0123456789"
+	params := url.Values{
+		"client_id":             {client.ClientID},
+		"redirect_uri":          {testRedirectURI},
+		"response_type":         {"code"},
+		"scope":                 {"openid profile email"},
+		"state":                 {"public-par-state"},
+		"nonce":                 {"public-par-nonce"},
+		"code_challenge":        {crypto.S256Challenge(verifier)},
+		"code_challenge_method": {"S256"},
+	}
+	response := e.postForm("/par", params)
+	if response.StatusCode != http.StatusCreated {
+		t.Fatalf("public-client PAR status = %d, want 201; body = %s", response.StatusCode, body(t, response))
+	}
+	var out parResponse
+	decodeJSON(t, response, &out)
+	if out.RequestURI == "" || out.ExpiresIn <= 0 {
+		t.Fatalf("invalid PAR response: %+v", out)
+	}
+
+	// The browser follows the back-channel push with only request_uri and the
+	// registered client_id; authorization parameters stay in the server-side PAR row.
+	authorize := e.get("/authorize?" + url.Values{
+		"client_id":   {client.ClientID},
+		"request_uri": {out.RequestURI},
+	}.Encode())
+	if authorize.StatusCode != http.StatusSeeOther {
+		t.Fatalf("authorize with public request_uri status = %d, want 303; body = %s", authorize.StatusCode, body(t, authorize))
+	}
+	location, err := url.Parse(location(t, authorize))
+	if err != nil {
+		t.Fatalf("parse authorize Location: %v", err)
+	}
+	if location.Path != "/login" {
+		t.Errorf("authorize redirected to %q, want /login", location.Path)
+	}
+}
 
 func TestPARLoginRedirect(t *testing.T) {
 	e := newEnv(t)

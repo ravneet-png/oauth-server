@@ -93,6 +93,20 @@ func TestInvalidClientIs401WithChallenge(t *testing.T) {
 	}
 }
 
+func TestInvalidTokenIs401(t *testing.T) {
+	w := httptest.NewRecorder()
+	OAuthError(w, oautherr.Newf(domain.ErrCodeInvalidToken, "token is not valid"))
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401", w.Code)
+	}
+	if got := w.Header().Get("WWW-Authenticate"); got != "" {
+		// The generic response helper does not choose a scheme. The bearer-token
+		// handler adds RFC 6750's challenge where the endpoint requires it.
+		t.Errorf("unexpected challenge = %q", got)
+	}
+}
+
 func TestOtherErrorsAreNot401(t *testing.T) {
 	for _, tc := range []struct {
 		name string

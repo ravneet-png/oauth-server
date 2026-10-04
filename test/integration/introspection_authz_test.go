@@ -17,6 +17,59 @@ func TestIntrospectionRequiresClientAuthentication(t *testing.T) {
 	}
 }
 
+func TestPublicClientCanIntrospectItsOwnAccessToken(t *testing.T) {
+	e := newEnv(t)
+	user := createUserWithPassword(t, e, "user-intr-public", "public-intr@example.test", "correct horse battery", true)
+	f := newPublicFlow(t, e, "public-intr-owner")
+	f.start(t, e)
+	f.signIn(t, e, user.Email, "correct horse battery")
+	code := f.allow(t, e)
+	tokens := f.exchangePublic(t, e, code)
+
+	response := e.postForm("/introspect", url.Values{
+		"client_id": {f.client.ClientID},
+		"token":     {tokens.AccessToken},
+	})
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("public-client introspection status = %d, want 200; body = %s", response.StatusCode, body(t, response))
+	}
+	var out struct {
+		Active   bool     `json:"active"`
+		ClientID string   `json:"client_id"`
+		Sub      string   `json:"sub"`
+		Iss      string   `json:"iss"`
+		Aud      []string `json:"aud"`
+	}
+	decodeJSON(t, response, &out)
+	if !out.Active {
+		t.Fatal("the public client could not introspect its own access token")
+	}
+	if out.ClientID != f.client.ClientID || out.Sub != user.UserID {
+		t.Errorf("introspection identity = client %q sub %q; want client %q sub %q", out.ClientID, out.Sub, f.client.ClientID, user.UserID)
+	}
+	if out.Iss != "http://localhost:8080" || len(out.Aud) == 0 {
+		t.Errorf("introspection omitted issuer or audience claims: %+v", out)
+	}
+}
+
+func TestUnknownTokenIntrospectsInactiveWithoutClaims(t *testing.T) {
+	e := newEnv(t)
+	owner := newConfidentialFlow(t, e, "app-intr-unknown", "unknown-token-secret")
+	response := e.postFormBasic("/introspect", url.Values{"token": {"not-a-token"}}, owner.client.ClientID, owner.secret)
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("introspection status = %d, want 200; body = %s", response.StatusCode, body(t, response))
+	}
+	var out struct {
+		Active   bool   `json:"active"`
+		ClientID string `json:"client_id"`
+		Sub      string `json:"sub"`
+	}
+	decodeJSON(t, response, &out)
+	if out.Active || out.ClientID != "" || out.Sub != "" {
+		t.Errorf("unknown token response disclosed claims: %+v", out)
+	}
+}
+
 func TestUnrelatedClientCannotIntrospectAccessOrRefreshToken(t *testing.T) {
 	e := newEnv(t)
 

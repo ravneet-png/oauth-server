@@ -1,68 +1,87 @@
 {{define "callback"}}{{template "layout_head" .}}
-<div class="console" id="callback-console"
+<div class="console account-page account-page--callback" id="callback-console"
      data-issuer="{{.Issuer}}"
      data-client-id="{{.DemoClientID}}"
      data-callback-url="{{.CallbackURL}}"
      data-code="{{.Code}}"
+     data-code-present="{{.CodePresent}}"
      data-state="{{.State}}"
+     data-state-present="{{.StatePresent}}"
      data-iss="{{.ReturnedIss}}"
-     data-error="{{.OAuthError}}">
+     data-iss-present="{{.IssuerPresent}}"
+     data-error="{{.OAuthError}}"
+     data-error-present="{{.OAuthErrorPresent}}"
+     data-response-valid="{{.ResponseValid}}">
+  <header class="account-page__intro">
+    <div>
+      <span class="account-kicker">OAUTH 2.1 · REDIRECT RECEIVER</span>
+      <p class="account-copy">The callback checks the pending state and exact issuer before allowing a code exchange.</p>
+    </div>
+    <span class="badge">Expected issuer <code>{{.Issuer}}</code></span>
+  </header>
 
-  <div class="console__banner">
-    {{if .OAuthError}}
-      <span class="badge badge--error">Authorization Error: <code>{{.OAuthError}}</code></span>
-    {{else if .Code}}
-      <span class="badge badge--success">&#10003; Authorization Code Issued</span>
-    {{else}}
-      <span class="badge">OAuth 2.1 Callback</span>
-    {{end}}
-    {{if .ReturnedIss}}<span class="badge">RFC 9207 <code>iss={{.ReturnedIss}}</code></span>{{end}}
-    {{if .State}}<span class="badge"><code>state={{.State}}</code></span>{{end}}
-  </div>
+  <p class="alert alert--info callback-validation" id="callback-validation" role="status" aria-live="polite">Checking the returned state and issuer…</p>
 
-  {{if .OAuthError}}
-  <div class="alert alert--error">
-    <strong>{{.OAuthError}}</strong>{{if .OAuthDesc}}: {{.OAuthDesc}}{{end}}
+  {{if .OAuthErrorPresent}}
+  <div class="alert alert--error" id="authorization-error" role="alert" hidden>
+    <strong>{{if .OAuthError}}{{.OAuthError}}{{else}}Authorization error{{end}}</strong>{{if .OAuthDesc}}: {{.OAuthDesc}}{{end}}
   </div>
   {{end}}
 
-  {{if .Code}}
-  <section class="panel panel--full">
+  {{if .CodePresent}}
+  <section class="panel panel--account panel--full" id="authorization-code-panel" hidden>
+    <div class="panel__eyebrow">AUTHORIZATION CODE</div>
     <div class="panel__header">
-      <h2 class="panel__title">1. Authorization Code &amp; Automatic PKCE Exchange (<code>POST /token</code>)</h2>
+      <div>
+        <h2 class="panel__title">Exchange the one-time code</h2>
+        <p class="muted">The code is exchanged at <code>POST /token</code> with the original PKCE verifier.</p>
+      </div>
       <div class="button-row button-row--tight">
-        <button type="button" id="exchange-code-btn" class="button button--primary button--sm">Exchange Code for Tokens</button>
-        <button type="button" id="replay-code-btn" class="button button--secondary button--sm" title="Send the same authorization code a second time to test OAuth 2.1 reuse detection">Test Code Replay Attack</button>
+        <button type="button" id="exchange-code-btn" class="button button--primary button--sm" disabled>Exchange code</button>
+        <button type="button" id="replay-code-btn" class="button button--secondary button--sm" disabled title="Replaying a used authorization code is intentionally destructive and may revoke its token family">Test code replay</button>
       </div>
     </div>
-    <p class="muted">One-time code: <code>{{.Code}}</code></p>
-    <pre class="code-box" id="token-status">Exchanging authorization code + PKCE code_verifier with POST /token...</pre>
+    <p class="code-caption">One-time authorization code: <code>{{.Code}}</code></p>
+    <pre class="code-box" id="token-status" aria-live="polite">No token request has been sent.</pre>
   </section>
 
-  <div class="console__grid">
-    <section class="panel">
-      <h2 class="panel__title">2. Decoded Access Token (RS256 JWT)</h2>
-      <pre class="code-box code-box--tall" id="access-token-decoded">Waiting for token exchange...</pre>
+  <div class="console__grid" id="token-claims-grid" hidden>
+    <section class="panel panel--account">
+      <div class="panel__eyebrow">ACCESS TOKEN</div>
+      <h2 class="panel__title">Decoded JWT</h2>
+      <p class="field__hint">Inspection only. This browser does not verify the token signature or claims.</p>
+      <pre class="code-box code-box--tall" id="access-token-decoded">Waiting for token exchange…</pre>
     </section>
-
-    <section class="panel">
-      <h2 class="panel__title">3. Decoded OIDC ID Token Claims</h2>
-      <pre class="code-box code-box--tall" id="id-token-decoded">Waiting for token exchange...</pre>
+    <section class="panel panel--account">
+      <div class="panel__eyebrow">OPENID CONNECT</div>
+      <h2 class="panel__title">Decoded ID token</h2>
+      <p class="field__hint">Inspection only. This browser does not verify the token signature or claims.</p>
+      <pre class="code-box code-box--tall" id="id-token-decoded">Waiting for token exchange…</pre>
     </section>
   </div>
 
-  <section class="panel panel--full">
+  <section class="panel panel--account panel--full" id="token-operations-panel" hidden>
+    <div class="panel__eyebrow">TOKEN OPERATIONS</div>
     <div class="panel__header">
-      <h2 class="panel__title">4. Interactive Token Operations</h2>
-      <div class="button-row button-row--tight">
-        <button type="button" id="call-userinfo-btn" class="button button--primary button--sm" disabled>Call GET /userinfo</button>
-        <button type="button" id="rotate-refresh-btn" class="button button--secondary button--sm" disabled>Rotate Refresh Token (POST /token)</button>
-        <button type="button" id="revoke-token-btn" class="button button--secondary button--sm" disabled>Revoke Token (POST /revoke)</button>
+      <div>
+        <h2 class="panel__title">Test the issued access token</h2>
+        <p class="muted">Calls the existing userinfo, introspection, refresh, and revocation endpoints as the public demo client.</p>
+      </div>
+      <div class="button-row button-row--tight operation-buttons">
+        <button type="button" id="call-userinfo-btn" class="button button--secondary button--sm" disabled>GET /userinfo</button>
+        <button type="button" id="call-introspect-btn" class="button button--secondary button--sm" disabled>POST /introspect</button>
+        <button type="button" id="rotate-refresh-btn" class="button button--secondary button--sm" disabled>Rotate refresh token</button>
+        <button type="button" id="revoke-token-btn" class="button button--secondary button--sm" disabled>POST /revoke</button>
       </div>
     </div>
-    <pre class="code-box code-box--tall" id="operation-output">Once tokens are issued above, click any operation button to test /userinfo, refresh rotation, code replay cascade, or revocation.</pre>
+    <pre class="code-box code-box--tall" id="operation-output" aria-live="polite">Exchange a code to enable token operations.</pre>
   </section>
   {{end}}
+
+  <section class="panel panel--account panel--full" id="no-response-panel" hidden>
+    <h2 class="panel__title">No authorization response</h2>
+    <p class="muted">Start a new flow from the Developer Console to create a fresh PKCE transaction.</p>
+  </section>
 
   <div class="button-row">
     <a class="button button--secondary" href="/">&larr; Back to Developer Console</a>
