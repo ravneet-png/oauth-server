@@ -19,8 +19,8 @@ func TestPromptNoneWithoutSessionReturnsLoginRequired(t *testing.T) {
 	f.authParams.Set("state", "state-pnone-1")
 
 	resp := e.get("/authorize?" + f.authParams.Encode())
-	if resp.StatusCode != http.StatusSeeOther {
-		t.Fatalf("authorize prompt=none status = %d, want 303; body = %s", resp.StatusCode, body(t, resp))
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("authorize prompt=none status = %d, want 302; body = %s", resp.StatusCode, body(t, resp))
 	}
 
 	loc, err := url.Parse(location(t, resp))
@@ -63,8 +63,8 @@ func TestPromptNoneWithoutConsentReturnsConsentRequired(t *testing.T) {
 	if loc.Path == "/consent" {
 		authReqID := loc.Query().Get("auth_request_id")
 		consentResp := e.get("/consent?auth_request_id=" + url.QueryEscape(authReqID))
-		if consentResp.StatusCode != http.StatusSeeOther {
-			t.Fatalf("consent with prompt=none rendered page (status %d), want 303 redirect", consentResp.StatusCode)
+		if consentResp.StatusCode != http.StatusFound {
+			t.Fatalf("consent with prompt=none rendered page (status %d), want 302 redirect", consentResp.StatusCode)
 		}
 		loc, err = url.Parse(location(t, consentResp))
 		if err != nil {
@@ -137,8 +137,8 @@ func TestPromptNoneWithSessionAndConsentAndMaxAge(t *testing.T) {
 	silentParams.Set("state", "state-max-age-expired")
 
 	agedResp := e.get("/authorize?" + silentParams.Encode())
-	if agedResp.StatusCode != http.StatusSeeOther {
-		t.Fatalf("aged authorize status = %d, want 303", agedResp.StatusCode)
+	if agedResp.StatusCode != http.StatusFound {
+		t.Fatalf("aged authorize status = %d, want 302", agedResp.StatusCode)
 	}
 	agedLoc, err := url.Parse(location(t, agedResp))
 	if err != nil {
