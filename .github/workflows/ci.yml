@@ -95,9 +95,9 @@ jobs:
       - name: Verify cgo-free static build
         run: CGO_ENABLED=0 go build -trimpath -o /dev/null ./cmd/server
 
-  # The schema is the only part of this project with real assertions today, so it
-  # gets its own job. It applies the migration, proves the down migration leaves
-  # no tables behind, then re-applies and checks every constraint.
+  # Exercise the raw SQL schema separately from the Go tests: apply the initial
+  # migration, verify rollback leaves no tables, reapply, and assert constraints
+  # and security indexes.
   schema:
     runs-on: ubuntu-latest
     services:
