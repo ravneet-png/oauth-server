@@ -1,8 +1,15 @@
-# OAuth 2.1 + OIDC Authorization Server
+# OAuth Server
 
-A production-grade OAuth 2.1 and OpenID Connect authorization server built from scratch in Go.
+An OAuth authorization server in Go with OAuth 2.1-aligned practices (mandatory
+PKCE, no implicit grant, refresh-token rotation). It also covers related RFCs
+and OpenID Connect features used by the developer console. It is not
+production-grade software and is not a fully compliant OAuth 2.1 or OpenID
+Connect implementation.
 
 ## Standards Implemented
+
+The following specifications are partially implemented with OAuth 2.1-aligned
+practices. This list is not a claim of full compliance or certification.
 
 * RFC 6749 (OAuth 2.0)
 * RFC 6750 (Bearer Token)
@@ -31,6 +38,8 @@ Open **`http://localhost:8080`** in your browser to use the interactive **OAuth 
 1. Create an account at `/signup`, verify the address from the email, and sign in. The login page links to `/forgot-password`; reset links open a working `/reset-password` form backed by the existing JSON recovery endpoints.
 2. On `/`, the console builds a cryptographically random WebCrypto S256 PKCE pair, generates fresh `state` and `nonce`, and pushes the request to `POST /par` by default. You can turn PAR off to compare the direct `/authorize` route. The public demo client uses no client secret.
 3. Approve the unchanged consent screen (`/consent`). The callback at `/callback` checks that `state` matches the pending tab transaction and that the returned RFC 9207 `iss` exactly matches the configured issuer before enabling a manual `POST /token` code exchange. It can call `/userinfo`, `/introspect`, refresh rotation, replay detection, and `/revoke` for the issued token. JWT headers and claims are decoded for inspection only; the browser does **not** verify signatures or claims.
+
+Password recovery is self-service account recovery, not the OAuth resource-owner password grant. `POST /forgot-password` always returns the same `202` message so it cannot be used to probe whether an address is registered; a one-time mail is sent only when an eligible account exists. `GET /reset-password` strips the token from the address bar and submits `POST /reset-password`, which updates the password and revokes that account's sessions and refresh tokens. Unusable tokens return `401` with `invalid_token`.
 
 The console also exposes the existing `client_credentials` grant for a pre-registered confidential client. A secret is accepted only for that one request, is never persisted to local/session storage, and the input is cleared after submission. A browser cannot protect a confidential secret, so use this only with a throwaway development client; use server-to-server authentication in production. There is no UI for dynamic client registration, which remains disabled by default, and the OAuth resource-owner password grant remains unsupported.
 
@@ -137,12 +146,14 @@ This runs `go test ./... -count=1 -p 1` with the race detector and shuffled test
 
 ## Project status
 
-This is a reference implementation, not audited production software. It has not
-been certified against the OpenID Foundation conformance suite, and access
-tokens are self-contained JWTs, so revocation is not real-time — it is bounded
-by `tokens.access_ttl` seconds. Device authorization (RFC 8628), DPoP (RFC
-9449), mTLS (RFC 8705), and pairwise subjects are not implemented.
-See [`SECURITY.md`](SECURITY.md) for the full list.
+This is a reference implementation with OAuth 2.1-aligned practices, not
+audited production-grade software and not a fully compliant OAuth 2.1 or
+OpenID Connect server. It has not been certified against the OpenID Foundation
+conformance suite, and access tokens are self-contained JWTs, so revocation is
+not real-time — it is bounded by `tokens.access_ttl` seconds. Device
+authorization (RFC 8628), DPoP (RFC 9449), mTLS (RFC 8705), and pairwise
+subjects are not implemented. Self-service password recovery is implemented;
+see [`SECURITY.md`](SECURITY.md) for that flow and the full limitations list.
 
 ## License
 

@@ -34,7 +34,7 @@ fixes for older revisions.
 also not been certified against the OpenID Foundation conformance suite. Treat it
 as a reference implementation.
 
-Known limitations are listed in [`README.md`](README.md) under *Security status*.
+Known limitations are listed in [`README.md`](README.md) under *Project status*.
 
 ## Cryptographic choices
 
@@ -120,6 +120,31 @@ toward predictable substitutions.
 
 Breached-password screening is not implemented and should be added.
 
+## Password recovery
+
+Self-service recovery is implemented. It is account recovery, not the OAuth
+resource-owner password grant (`grant_type=password` remains unsupported).
+
+`GET /forgot-password` is the HTML form linked from `/login`.
+`POST /forgot-password` is a public JSON endpoint. Every caller receives
+`202 Accepted` with the same body, including unknown and malformed addresses,
+so the endpoint is not an account oracle. A reset mail is sent only when an
+enabled account exists; a lockout still receives mail so the user can recover.
+The request shares the registration rate-limit key (`3/hour` per IP).
+
+The mailed link points at `GET /reset-password?token=...`. The token is 32
+bytes from `crypto/rand`, stored as a SHA-256 hash, single-use, and expires
+after 30 minutes by default. The page script removes the token from the
+address bar and never writes it to browser storage.
+
+`POST /reset-password` redeems the token, hashes the new password with
+Argon2id, consumes the token with a conditional `UPDATE`, then revokes every
+session and refresh token for that user. The password must meet
+`security.password_min_length` (12). Unknown, expired, used, and
+wrong-purpose tokens all return `401` with `{"error":"invalid_token"}`.
+Access tokens are self-contained JWTs, so they remain acceptable until
+`tokens.access_ttl` unless the resource server introspects.
+
 ## Session cookies
 
 ```
@@ -151,7 +176,7 @@ Two tiers, both backed by Redis with Lua for atomicity:
 | `/mfa` | — | 3/min per pending challenge, 5 total attempts |
 | `/token` | 10/min unauthenticated | 60/min per client |
 | `/par` | — | 60/min per client |
-| `/users/register` | 3/hour | — |
+| `/users/register`, `POST /forgot-password`, `POST /reset-password` | 3/hour | — |
 | `/register` | 3/hour | — |
 
 Fails **closed** by default: if Redis is unavailable, the authorization and
@@ -165,9 +190,9 @@ ignored entirely, which is the correct default.
 
 Cookie-authenticated browser endpoints (`/authorize`, `/login`, `/mfa`,
 `/consent`) require a CSRF token bound to the flow. Machine endpoints
-(`/token`, `/revoke`, `/introspect`, `/par`) do not and must not — they are
-authenticated by credentials in the request, and wrapping them in cookie-based
-CSRF breaks non-browser clients.
+(`/token`, `/revoke`, `/introspect`, `/par`, `POST /forgot-password`,
+`POST /reset-password`) do not — they are not cookie-authenticated, and
+wrapping them in cookie-based CSRF breaks non-browser clients.
 
 The skip list is a positive allowlist by route group, not a denylist.
 
@@ -203,12 +228,11 @@ rewrite arbitrary JSONB, which cannot be done soundly by removing top-level keys
    process restart.
 6. **Pairwise subjects are not implemented.** `sub` is public, so two clients can
    correlate a user. This matters for privacy and is a FAPI requirement.
-7. **No password reset flow.** Users have no self-service recovery.
-8. **No proof-of-work or CAPTCHA** on registration, so volumetric signup abuse is
+7. **No proof-of-work or CAPTCHA** on registration, so volumetric signup abuse is
    only slowed by rate limiting.
-9. **No DPoP or mTLS.** A bearer token is replayable if it leaks.
-10. **Admin endpoints** (`DELETE /users/{id}`, `POST /keys/rotate`) require an
+8. **No DPoP or mTLS.** A bearer token is replayable if it leaks.
+9. **Admin endpoints** (`DELETE /users/{id}`, `POST /keys/rotate`) require an
     admin session but do not yet require recent re-authentication or a reason
     reference.
-11. **The audit partition maintenance job is not implemented**, so retention is
+10. **The audit partition maintenance job is not implemented**, so retention is
     currently unenforced.
