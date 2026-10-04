@@ -7,8 +7,9 @@ COMPOSE ?= docker compose
 
 .DEFAULT_GOAL := help
 
-.PHONY: help build run test test-short cover bench vet fmt lint lint-fix tidy dist \
-        migrate-up migrate-down-1 migrate-status migrate-force migrate-create \
+.PHONY: help build run test test-race test-short cover bench vet fmt lint lint-fix tidy dist \
+        migrate-up migrate-down migrate-status migrate-force migrate-create \
+        docker-up docker-down \
         schema-apply schema-reset schema-test schema-roundtrip \
         deps-up deps-down deps-reset up down psql redis-cli mailhog clean
 

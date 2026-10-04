@@ -27,7 +27,7 @@ practices. This list is not a claim of full compliance or certification.
 ## Quickstart
 
 ```bash
-git clone <repo>
+git clone https://github.com/ravneet-png/oauth-server.git
 cd oauth-server
 cp .env.example .env   # optional in development; required in production
 docker compose up -d   # builds the app and starts postgres, redis and mailhog
@@ -142,15 +142,16 @@ Key sections in `config.yaml`:
 make test
 ```
 
-This runs `go test ./... -count=1 -p 1` with the race detector and shuffled test order.
+This runs `go test -race -shuffle=on -count=1 ./...`: the full suite with the
+race detector, randomized test order, and test-result caching disabled.
 
 ## Project status
 
-This is a reference implementation with OAuth 2.1-aligned practices, not
-audited production-grade software and not a fully compliant OAuth 2.1 or
-OpenID Connect server. It has not been certified against the OpenID Foundation
-conformance suite, and access tokens are self-contained JWTs, so revocation is
-not real-time — it is bounded by `tokens.access_ttl` seconds. Device
+This is an OAuth 2.1-aligned reference implementation, not a production-grade
+or fully compliant OAuth 2.1 or OpenID Connect server. It has not been audited
+or certified, and it has not passed the OpenID Foundation conformance suite.
+Access tokens are self-contained JWTs, so revocation is not real-time — it is
+bounded by `tokens.access_ttl` seconds. Device
 authorization (RFC 8628), DPoP (RFC 9449), mTLS (RFC 8705), and pairwise
 subjects are not implemented. Self-service password recovery is implemented;
 see [`SECURITY.md`](SECURITY.md) for that flow and the full limitations list.
