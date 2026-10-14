@@ -1,10 +1,20 @@
 # OAuth Server
 
-An OAuth authorization server in Go with OAuth 2.1-aligned practices (mandatory
-PKCE, no implicit grant, refresh-token rotation). It also covers related RFCs
-and OpenID Connect features used by the developer console. It is not
-production-grade software and is not a fully compliant OAuth 2.1 or OpenID
-Connect implementation.
+**In plain terms:** this is a self-hosted login and permissions server. It is the
+software behind a "Sign in with ___" button and the "Allow this app to access your
+account?" screen. It verifies a user, records their consent, and hands the app a
+tamper-proof, expiring token — so the app never has to see the user's password.
+
+**Who it is for:** developers who want a working, readable OAuth 2.1 / OpenID
+Connect server to learn from, run locally, or use as a starting point. It ships with
+a browser Developer Console that walks the entire flow — sign-in, consent, token
+exchange, introspection, refresh and revocation — end to end.
+
+Under the hood it is an OAuth authorization server written in Go, following OAuth
+2.1-aligned practices (mandatory PKCE, no implicit grant, refresh-token rotation)
+plus the related RFCs and OpenID Connect features exercised by the console. It is a
+reference implementation, not production-grade software; see
+[Project status](#project-status) for what it is and is not.
 
 ## Standards Implemented
 
