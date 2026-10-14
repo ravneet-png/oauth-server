@@ -69,7 +69,7 @@ func (d *Deps) logoutRP(w http.ResponseWriter, r *http.Request) {
 				d.Logger.Error("logout: session logout", "error", lerr.Error(), "correlation_id", d.state(r).correlationID)
 			}
 		}
-		middleware.ClearSessionCookie(w, d.Config.SessionCookieSecure)
+		middleware.ClearSessionCookie(w, d.Config.SessionCookieName, d.Config.SessionCookieSecure)
 		d.renderLoggedOut(w, r)
 		return
 	}
@@ -81,7 +81,7 @@ func (d *Deps) logoutRP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if sessionID != "" {
-		middleware.ClearSessionCookie(w, d.Config.SessionCookieSecure)
+		middleware.ClearSessionCookie(w, d.Config.SessionCookieName, d.Config.SessionCookieSecure)
 	}
 	d.renderLoggedOut(w, r)
 }
@@ -98,7 +98,7 @@ func (d *Deps) logoutSession(w http.ResponseWriter, r *http.Request) {
 	}
 	// Clear the cookie whether or not a session was found: a client that calls /logout
 	// to discard a stale cookie should get one that is actually gone.
-	middleware.ClearSessionCookie(w, d.Config.SessionCookieSecure)
+	middleware.ClearSessionCookie(w, d.Config.SessionCookieName, d.Config.SessionCookieSecure)
 	w.WriteHeader(http.StatusNoContent)
 }
 

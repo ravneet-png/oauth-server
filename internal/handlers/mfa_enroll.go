@@ -204,7 +204,7 @@ func (d *Deps) mfaEnrollSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	// The counter observed at confirmation is the floor for replay protection. A failure
 	// to persist it is not fatal: the next login re-derives it.
-	if err := d.Users.UpdateMFALastCounter(r.Context(), st.userID, int64(counter)); err != nil {
+	if _, err := d.Users.UpdateMFALastCounter(r.Context(), st.userID, int64(counter)); err != nil {
 		d.Logger.Warn("mfa_enroll: persist counter", "error", err.Error(), "correlation_id", st.correlationID)
 	}
 

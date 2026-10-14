@@ -7,6 +7,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"oauth-server/internal/domain"
@@ -71,14 +72,24 @@ func (r *TokenFamilyRepo) Create(ctx context.Context, f *domain.TokenFamily) err
 // is a rejected insert. ON CONFLICT DO NOTHING rather than a read-then-write because
 // two requests racing on the same family must both succeed.
 func (r *TokenFamilyRepo) Ensure(ctx context.Context, f *domain.TokenFamily) error {
-	const q = `
+	return ensureTokenFamily(ctx, r.pool, f)
+}
+
+// EnsureTx is Ensure executed on a caller-supplied transaction, so the family row the
+// authorization code's foreign key needs is created atomically with that code.
+func (r *TokenFamilyRepo) EnsureTx(ctx context.Context, tx pgx.Tx, f *domain.TokenFamily) error {
+	return ensureTokenFamily(ctx, tx, f)
+}
+
+func ensureTokenFamily(ctx context.Context, q queryer, f *domain.TokenFamily) error {
+	const query = `
 		INSERT INTO token_families (
 			family_id, user_id, client_id, source_auth_code_hash,
 			absolute_expires_at
 		) VALUES ($1, $2, $3, $4, $5)
 		ON CONFLICT (family_id) DO NOTHING`
 
-	_, err := r.pool.Exec(ctx, q,
+	_, err := q.Exec(ctx, query,
 		f.FamilyID, f.UserID, f.ClientID, f.SourceAuthCodeHash, f.AbsoluteExpiresAt)
 	if err != nil {
 		return classifyError(err, formatOp("token_families", "ensure"))

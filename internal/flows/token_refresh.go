@@ -1,8 +1,7 @@
 package flows
 
-// Refresh token exchange. Distinguishes reuse of a rotated token, which revokes the family,
-// from a token revoked by logout, which does not. Includes grace window so that benign
-// concurrent refreshes are not mistaken for theft. Implements FIX 3, 🔧6, 🔧7, 🔧8.
+// Refresh token exchange. Distinguishes reuse of a rotated token, which revokes the whole
+// family, from a token revoked by logout, which does not.
 
 import (
 	"context"
@@ -88,7 +87,13 @@ func ExchangeRefreshToken(ctx context.Context,
 		if existingRT.RevocationReason != nil {
 			switch *existingRT.RevocationReason {
 			case domain.RevocationReasonRotated:
-				// Reuse of a rotated token = attack
+				// Reuse of a rotated token = attack. There is deliberately no grace
+				// window: the successor's plaintext is not stored, so a benign
+				// concurrent refresh cannot be answered with the already-issued
+				// tokens, and any window that still failed the request would weaken
+				// the one signal that distinguishes theft from a race. The losing
+				// request of a genuine race is refused and the client retries with
+				// the successor the winner already holds.
 				if _, err := refreshTokenRepo.RevokeFamily(ctx, existingRT.FamilyID, domain.RevocationReasonReuseCascade); err != nil {
 					return nil, fmt.Errorf("flows: revoke family on reuse: %w", err)
 				}
@@ -175,14 +180,13 @@ func ExchangeRefreshToken(ctx context.Context,
 		return nil, fmt.Errorf("flows: create refresh token: %w", err)
 	}
 
-	// Link the predecessor to the successor. This is the grace window's input:
-	// if the client later presents hash again, this row is what distinguishes a
-	// duplicate request from a concurrent one that lost the race, and it is why
-	// benign double-refresh does not cascade the family.
+	// Link the predecessor to the successor so the lineage of a rotation is
+	// recorded. Nothing reads it for a reuse decision today, but it makes a
+	// reported reuse traceable to the token that replaced it.
 	if err := refreshTokenRepo.SetReplacedByHash(ctx, hash, newRT.Hash); err != nil {
 		// Not fatal. Rotation already succeeded and the successor is issued; the
-		// link only improves the next reuse decision, so failing the request here
-		// would take away a working session over a bookkeeping write.
+		// link is bookkeeping, so failing the request here would take away a working
+		// session over a non-essential write.
 		_ = err
 	}
 

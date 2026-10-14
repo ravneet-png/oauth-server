@@ -119,7 +119,7 @@ func (d *Deps) establishSession(w http.ResponseWriter, r *http.Request, user *do
 		return
 	}
 
-	middleware.SetSessionCookie(w, session.SessionID, session.ExpiresAt, d.Config.SessionCookieSecure)
+	middleware.SetSessionCookie(w, d.Config.SessionCookieName, session.SessionID, session.ExpiresAt, d.Config.SessionCookieSecure)
 
 	// Attach the authenticated user to the authorization request before redirecting,
 	// so the consent step does not have to re-establish who is asking. A failure here

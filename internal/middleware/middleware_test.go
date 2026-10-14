@@ -835,3 +835,75 @@ func (l *captureLogger) statusOf(t *testing.T, key string) int {
 	t.Fatalf("no %q argument was logged", key)
 	return 0
 }
+
+// --- correlation id ------------------------------------------------------------
+
+// TestCorrelationIDMintedWhenAbsent checks a request without a correlation id still
+// leaves the handler and the response with one, so every log line and the client share
+// a single identifier for the request.
+func TestCorrelationIDMintedWhenAbsent(t *testing.T) {
+	w := httptest.NewRecorder()
+	var seen string
+
+	handler := CorrelationIDMiddleware(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		seen = GetCorrelationID(r.Context())
+	}))
+	handler.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/", nil))
+
+	if seen == "" {
+		t.Fatal("handler saw an empty correlation id")
+	}
+	if got := w.Header().Get("X-Correlation-ID"); got != seen {
+		t.Errorf("response header = %q, want %q (the id the handler saw)", got, seen)
+	}
+	if !isValidUUID(seen) {
+		t.Errorf("minted id %q is not a UUID", seen)
+	}
+}
+
+// TestCorrelationIDIncomingValidIsEchoed checks a well-formed inbound id is preserved,
+// so a caller correlating its own logs with the server's can supply the id.
+func TestCorrelationIDIncomingValidIsEchoed(t *testing.T) {
+	const cid = "3f2504e0-4f89-11d3-9a0c-0305e82c3301"
+
+	w := httptest.NewRecorder()
+	var seen string
+	handler := CorrelationIDMiddleware(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		seen = GetCorrelationID(r.Context())
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("X-Correlation-ID", cid)
+	handler.ServeHTTP(w, req)
+
+	if seen != cid {
+		t.Errorf("handler saw %q, want the inbound %q", seen, cid)
+	}
+	if got := w.Header().Get("X-Correlation-ID"); got != cid {
+		t.Errorf("response header = %q, want %q", got, cid)
+	}
+}
+
+// TestCorrelationIDIncomingInvalidIsReplaced is the security-relevant case: the id lands
+// in structured logs, so an arbitrary caller-supplied string must not be adopted verbatim
+// (log injection, forged joins). A malformed id is discarded and a fresh one minted.
+func TestCorrelationIDIncomingInvalidIsReplaced(t *testing.T) {
+	const forged = "not-a-uuid\nlevel=error msg=forged"
+
+	w := httptest.NewRecorder()
+	var seen string
+	handler := CorrelationIDMiddleware(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		seen = GetCorrelationID(r.Context())
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("X-Correlation-ID", forged)
+	handler.ServeHTTP(w, req)
+
+	if seen == forged {
+		t.Fatal("forged correlation id was adopted verbatim")
+	}
+	if !isValidUUID(seen) {
+		t.Errorf("replacement id %q is not a UUID", seen)
+	}
+}

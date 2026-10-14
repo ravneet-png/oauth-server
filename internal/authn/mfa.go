@@ -130,11 +130,16 @@ func (v *Verifier) VerifyTOTP(ctx context.Context, userID, secret string, code s
 		return 0, fmt.Errorf("authn: VerifyTOTP: %w", err)
 	}
 
-	if err := v.userRepo.UpdateMFALastCounter(ctx, userID, int64(counter)); err != nil {
-		// Not advanced means the code is refused. Returning an error rather than
-		// succeeding keeps the code usable for its remaining window, which is the
-		// safe direction: the user retries and it works.
+	advanced, err := v.userRepo.UpdateMFALastCounter(ctx, userID, int64(counter))
+	if err != nil {
+		// A write failure keeps the code usable for its remaining window, which is
+		// the safe direction: the user retries and it works.
 		return 0, fmt.Errorf("authn: VerifyTOTP: advance counter: %w", err)
+	}
+	if !advanced {
+		// Another request already consumed this counter. The conditional UPDATE did
+		// not advance it, so this is a replay of a code that verified a moment ago.
+		return 0, ErrMFAReplay
 	}
 
 	return int64(counter), nil

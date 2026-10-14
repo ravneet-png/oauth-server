@@ -13,6 +13,47 @@ import (
 	"oauth-server/internal/oautherr"
 )
 
+// TestGlobalChainOrderIsOutermostFirst pins the order each request passes through.
+//
+// The order is the whole point of GlobalChain, and the failure it guards against is a
+// middleware that exists but is never mounted (correlation), or one mounted on the wrong
+// side of another (session outside recovery). Asserting execution order catches both.
+func TestGlobalChainOrderIsOutermostFirst(t *testing.T) {
+	var order []string
+	mark := func(name string) func(http.Handler) http.Handler {
+		return func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				order = append(order, name)
+				next.ServeHTTP(w, r)
+			})
+		}
+	}
+
+	mw := MiddlewareConfig{
+		Correlation: mark("correlation"),
+		Recover:     mark("recover"),
+		Headers:     mark("headers"),
+		Session:     mark("session"),
+		Access:      mark("access"),
+	}
+	handler := http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+		order = append(order, "handler")
+	})
+
+	withMiddleware(handler, mw.GlobalChain()...).
+		ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
+
+	want := []string{"correlation", "recover", "headers", "session", "access", "handler"}
+	if len(order) != len(want) {
+		t.Fatalf("chain executed %v, want %v", order, want)
+	}
+	for i := range want {
+		if order[i] != want[i] {
+			t.Fatalf("chain executed %v, want %v", order, want)
+		}
+	}
+}
+
 func TestTokenResponseAlwaysCarriesTokenType(t *testing.T) {
 	w := httptest.NewRecorder()
 	// A caller that forgets token_type is the case this guards: RFC 6749 section 5.1

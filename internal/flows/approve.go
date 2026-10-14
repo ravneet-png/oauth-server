@@ -15,6 +15,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	"oauth-server/internal/crypto"
 	"oauth-server/internal/domain"
 	"oauth-server/internal/storage"
@@ -59,13 +61,15 @@ type ApproveParams struct {
 
 // ApproveAuthorization issues an authorization code for a consented request.
 //
-// Ordering is the whole design. The request is claimed first, with the conditional
-// UPDATE that is the single-use guard, and only then is a code inserted. Reversing that
-// — insert, then claim — lets two concurrent submissions of the same consent form each
-// insert a code while only one claim succeeds, leaving a live code that no request
-// references and no later step can revoke. Claim-then-issue can instead leave a claimed
-// request with no code, which is a user who sees an error and retries; that is the safe
-// direction and the only one of the two that fails closed.
+// Ordering is the whole design, and the ordering only holds because it is one
+// transaction. The request is claimed first, with the conditional UPDATE that is the
+// single-use guard, and only then are the code, family and client-session rows
+// written. Reversing that — insert, then claim — lets two concurrent submissions of
+// the same consent form each insert a code while only one claim succeeds, leaving a
+// live code that no request references and no later step can revoke. Claim-then-issue
+// can instead leave a claimed request with no code, which is exactly what running the
+// two in one transaction prevents: either the claim and its rows commit together, or
+// the claim is rolled back and the user's retry succeeds.
 //
 // Returns the validated request so the caller can build the redirect from the stored
 // values rather than from anything the client supplied at approval time.
@@ -74,6 +78,7 @@ func ApproveAuthorization(ctx context.Context,
 	codeRepo *storage.AuthCodeRepo,
 	clientSessRepo *storage.ClientSessionRepo,
 	familyRepo *storage.TokenFamilyRepo,
+	db *storage.Pool,
 	params ApproveParams,
 ) (*domain.AuthRequest, string, error) {
 
@@ -85,6 +90,9 @@ func ApproveAuthorization(ctx context.Context,
 	}
 	if params.CodeTTL <= 0 {
 		return nil, "", domain.NewServerError("authorization code ttl is not configured")
+	}
+	if db == nil {
+		return nil, "", domain.NewServerError("database pool is not configured")
 	}
 
 	now := time.Now().UTC()
@@ -109,96 +117,108 @@ func ApproveAuthorization(ctx context.Context,
 		return nil, "", domain.NewAccessDenied("authorization request does not belong to this user")
 	}
 
-	// Claim the request. This is the single-use guard for code issuance; without it a
-	// double-submitted consent form mints two codes from one request.
-	claimed, err := authReqRepo.MarkCompleted(ctx, req.ID)
-	if err != nil {
-		return nil, "", fmt.Errorf("flows: mark auth request complete: %w", err)
-	}
-	if !claimed {
-		return nil, "", domain.NewInvalidRequest("authorization request has already been completed")
-	}
-
-	// Generate the code, its digest, and the two identifiers that let it be traced.
-	code, err := crypto.RandomToken()
-	if err != nil {
-		return nil, "", fmt.Errorf("flows: generate authorization code: %w", err)
-	}
-	familyID, err := crypto.RandomToken()
-	if err != nil {
-		return nil, "", fmt.Errorf("flows: generate family ID: %w", err)
-	}
-
-	sid := params.SID
-	if sid == "" {
-		sid, err = crypto.RandomToken()
+	// Everything from the claim on runs in one transaction, so the single-use claim
+	// and the rows it produces commit together or not at all. A failure between them
+	// outside a transaction would leave the request claimed with no code: the user's
+	// retry finds the request completed and the flow dead-ends.
+	var code string
+	if err := db.InTx(ctx, func(tx pgx.Tx) error {
+		// Claim the request. This is the single-use guard for code issuance; without
+		// it a double-submitted consent form mints two codes from one request.
+		claimed, err := authReqRepo.MarkCompletedTx(ctx, tx, req.ID)
 		if err != nil {
-			return nil, "", fmt.Errorf("flows: generate sid: %w", err)
+			return fmt.Errorf("flows: mark auth request complete: %w", err)
 		}
-	}
-
-	// Attach the sid to the browser session before issuing the code, so a failure
-	// here cannot leave a code whose sid exists in no client_sessions row. A logout
-	// that could not find the sid would fail to terminate this client's session.
-	sessionID := params.SessionID
-	if sessionID == "" {
-		return nil, "", domain.NewServerError("session id is not configured")
-	}
-	if err := clientSessRepo.Upsert(ctx, &domain.ClientSession{
-		SID:       sid,
-		SessionID: sessionID,
-		ClientID:  req.ClientID,
-	}); err != nil {
-		return nil, "", fmt.Errorf("flows: attach client session: %w", err)
-	}
-
-	authTime := params.AuthTime
-	if authTime.IsZero() {
-		// The request recorded the moment of authentication; falling back to it is
-		// correct, and falling back to now would overstate the freshness of a session
-		// that may be hours old.
-		if req.AuthTime != nil {
-			authTime = *req.AuthTime
-		} else {
-			authTime = now
+		if !claimed {
+			return domain.NewInvalidRequest("authorization request has already been completed")
 		}
-	}
 
-	// The family row first: the code below carries family_id, and it is a foreign key.
-	// If this fails the user sees an error and retries a request that is still
-	// unclaimed, because the claim is rolled back with the surrounding transaction
-	// when the caller treats a failure as fatal.
-	absoluteTTL := params.RefreshAbsoluteTTL
-	if absoluteTTL <= 0 {
-		return nil, "", domain.NewServerError("refresh absolute ttl is not configured")
-	}
-	if err := familyRepo.Ensure(ctx, &domain.TokenFamily{
-		FamilyID:           familyID,
-		UserID:             params.UserID,
-		ClientID:           req.ClientID,
-		SourceAuthCodeHash: nil,
-		AbsoluteExpiresAt:  authTime.Add(absoluteTTL),
+		// Generate the code, its digest, and the two identifiers that let it be traced.
+		c, err := crypto.RandomToken()
+		if err != nil {
+			return fmt.Errorf("flows: generate authorization code: %w", err)
+		}
+		familyID, err := crypto.RandomToken()
+		if err != nil {
+			return fmt.Errorf("flows: generate family ID: %w", err)
+		}
+
+		sid := params.SID
+		if sid == "" {
+			sid, err = crypto.RandomToken()
+			if err != nil {
+				return fmt.Errorf("flows: generate sid: %w", err)
+			}
+		}
+
+		// Attach the sid to the browser session before issuing the code, so a failure
+		// here cannot leave a code whose sid exists in no client_sessions row. A
+		// logout that could not find the sid would fail to terminate this client's
+		// session.
+		sessionID := params.SessionID
+		if sessionID == "" {
+			return domain.NewServerError("session id is not configured")
+		}
+		if err := clientSessRepo.UpsertTx(ctx, tx, &domain.ClientSession{
+			SID:       sid,
+			SessionID: sessionID,
+			ClientID:  req.ClientID,
+		}); err != nil {
+			return fmt.Errorf("flows: attach client session: %w", err)
+		}
+
+		authTime := params.AuthTime
+		if authTime.IsZero() {
+			// The request recorded the moment of authentication; falling back to it is
+			// correct, and falling back to now would overstate the freshness of a
+			// session that may be hours old.
+			if req.AuthTime != nil {
+				authTime = *req.AuthTime
+			} else {
+				authTime = now
+			}
+		}
+
+		// The family row first: the code below carries family_id, and it is a foreign
+		// key. Creating it before the code means the insert cannot fail on a dangling
+		// reference.
+		absoluteTTL := params.RefreshAbsoluteTTL
+		if absoluteTTL <= 0 {
+			return domain.NewServerError("refresh absolute ttl is not configured")
+		}
+		if err := familyRepo.EnsureTx(ctx, tx, &domain.TokenFamily{
+			FamilyID:           familyID,
+			UserID:             params.UserID,
+			ClientID:           req.ClientID,
+			SourceAuthCodeHash: nil,
+			AbsoluteExpiresAt:  authTime.Add(absoluteTTL),
+		}); err != nil {
+			return fmt.Errorf("flows: create token family: %w", err)
+		}
+
+		authCode := &domain.AuthCode{
+			CodeHash:            crypto.SHA256Hex(c),
+			ClientID:            req.ClientID,
+			UserID:              params.UserID,
+			SessionID:           stringPtr(sessionID),
+			SID:                 stringPtr(sid),
+			FamilyID:            stringPtr(familyID),
+			Scope:               params.Scope,
+			RedirectURI:         req.RedirectURI,
+			CodeChallenge:       req.CodeChallenge,
+			CodeChallengeMethod: req.CodeChallengeMethod,
+			Nonce:               req.Nonce,
+			AuthTime:            &authTime,
+			ExpiresAt:           now.Add(params.CodeTTL),
+		}
+		if err := codeRepo.CreateTx(ctx, tx, authCode); err != nil {
+			return fmt.Errorf("flows: create authorization code: %w", err)
+		}
+
+		code = c
+		return nil
 	}); err != nil {
-		return nil, "", fmt.Errorf("flows: create token family: %w", err)
-	}
-
-	authCode := &domain.AuthCode{
-		CodeHash:            crypto.SHA256Hex(code),
-		ClientID:            req.ClientID,
-		UserID:              params.UserID,
-		SessionID:           stringPtr(sessionID),
-		SID:                 stringPtr(sid),
-		FamilyID:            stringPtr(familyID),
-		Scope:               params.Scope,
-		RedirectURI:         req.RedirectURI,
-		CodeChallenge:       req.CodeChallenge,
-		CodeChallengeMethod: req.CodeChallengeMethod,
-		Nonce:               req.Nonce,
-		AuthTime:            &authTime,
-		ExpiresAt:           now.Add(params.CodeTTL),
-	}
-	if err := codeRepo.Create(ctx, authCode); err != nil {
-		return nil, "", fmt.Errorf("flows: create authorization code: %w", err)
+		return nil, "", err
 	}
 
 	// The code is returned in plaintext and exists in exactly two places: this return

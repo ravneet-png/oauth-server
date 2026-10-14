@@ -20,11 +20,17 @@ var ErrRateLimited = errors.New("rate limited")
 // RateLimiter wraps a Redis client for sliding window limits.
 type RateLimiter struct {
 	client *redis.Client
+
+	// failClosed makes an unavailable Redis deny rather than allow. It is a
+	// deployment property (rate_limit.fail_closed) and is required to be true
+	// wherever a limit is load-bearing: on /authorize and /token an outage must not
+	// silently remove the only thing bounding credential stuffing.
+	failClosed bool
 }
 
 // NewRateLimiter builds a RateLimiter from a Redis client.
-func NewRateLimiter(client *redis.Client) *RateLimiter {
-	return &RateLimiter{client: client}
+func NewRateLimiter(client *redis.Client, failClosed bool) *RateLimiter {
+	return &RateLimiter{client: client, failClosed: failClosed}
 }
 
 // Limit returns middleware that enforces a sliding window rate limit.
@@ -47,6 +53,13 @@ func (rl *RateLimiter) Limit(keyPrefix string, max int, windowSec int, keyFn fun
 				next.ServeHTTP(w, r)
 			})
 		}
+	}
+	if max <= 0 || windowSec <= 0 {
+		// A zero rule must not silently become "allow everything" through the script
+		// (a zero window drops every entry and the count is always under the limit).
+		// Returning a no-op makes a misconfigured rule behave like the disabled case,
+		// which is honest; the loader is where a missing required limit is rejected.
+		return func(next http.Handler) http.Handler { return next }
 	}
 
 	luaScript := redis.NewScript(`
@@ -126,10 +139,14 @@ func (rl *RateLimiter) Limit(keyPrefix string, max int, windowSec int, keyFn fun
 			result, err := luaScript.Run(ctx, rl.client, []string{key},
 				nowMs, windowSec*1000, windowSec, max, member).Slice()
 			if err != nil {
-				// Redis error: fail closed on auth endpoints, fail open on others.
-				// This endpoint doesn't know its own criticality, so we default to
-				// allowing the request rather than blocking all traffic during a
-				// Redis outage. The caller can wrap with a stricter policy if needed.
+				// Redis is unavailable. Whether that denies or allows is the
+				// deployment's decision (rate_limit.fail_closed), not this endpoint's:
+				// fail closed where the limit is load-bearing, fail open elsewhere so a
+				// cache outage does not take down endpoints that do not depend on it.
+				if rl.failClosed {
+					http.Error(w, "rate limiter unavailable", http.StatusServiceUnavailable)
+					return
+				}
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -197,59 +214,67 @@ func requestMember(nowMs int64) (string, error) {
 	return strconv.FormatInt(nowMs, 10) + "-" + suffix, nil
 }
 
-// Rate limit presets - key functions for common limits
+// Rate limit presets. Windows and limits come from configuration; the key function
+// decides what a bucket is.
 
-// LoginLimit: 5/min per IP
-func LoginLimit(rl *RateLimiter) func(http.Handler) http.Handler {
-	return rl.Limit("login", 5, 60, func(r *http.Request) string {
+// LoginLimit limits login attempts per client IP.
+func LoginLimit(rl *RateLimiter, max, windowSec int) func(http.Handler) http.Handler {
+	return rl.Limit("login", max, windowSec, func(r *http.Request) string {
 		return ClientIP(r)
 	})
 }
 
-// TokenLimit: 1000/min per authenticated client_id
-func TokenLimit(rl *RateLimiter) func(http.Handler) http.Handler {
-	return rl.Limit("token", 1000, 60, func(r *http.Request) string {
-		// client_id should be set in context by client auth middleware
-		if v := r.Context().Value("client_id"); v != nil {
-			if s, ok := v.(string); ok {
-				return s
-			}
-		}
-		return ""
-	})
-}
-
-// UnauthTokenLimit: 10/min per IP (before auth, prevents guessing)
-func UnauthTokenLimit(rl *RateLimiter) func(http.Handler) http.Handler {
-	return rl.Limit("token_unauth", 10, 60, func(r *http.Request) string {
+// AuthorizeLimit limits authorization requests per client IP.
+func AuthorizeLimit(rl *RateLimiter, max, windowSec int) func(http.Handler) http.Handler {
+	return rl.Limit("authorize", max, windowSec, func(r *http.Request) string {
 		return ClientIP(r)
 	})
 }
 
-// RegisterLimit: 3/hour per IP
-func RegisterLimit(rl *RateLimiter) func(http.Handler) http.Handler {
-	return rl.Limit("register", 3, 3600, func(r *http.Request) string {
+// TokenLimit limits token requests.
+//
+// Keyed on the peer address. The earlier version keyed on a "client_id" context value
+// that no middleware ever set, so the key function returned "" and the limiter allowed
+// every request: the endpoint limit that matters most was a no-op. True per-client
+// keying would require running the limit after client authentication, which happens
+// inside the handler; keying on the address is the honest limit available at this point
+// in the chain.
+func TokenLimit(rl *RateLimiter, max, windowSec int) func(http.Handler) http.Handler {
+	return rl.Limit("token", max, windowSec, func(r *http.Request) string {
 		return ClientIP(r)
 	})
 }
 
-// PARLimit: 1000/min per client_id
-func PARLimit(rl *RateLimiter) func(http.Handler) http.Handler {
-	return rl.Limit("par", 1000, 60, func(r *http.Request) string {
-		if v := r.Context().Value("client_id"); v != nil {
-			if s, ok := v.(string); ok {
-				return s
-			}
-		}
+// UnauthTokenLimit limits unauthenticated token requests per client IP.
+func UnauthTokenLimit(rl *RateLimiter, max, windowSec int) func(http.Handler) http.Handler {
+	return rl.Limit("token_unauth", max, windowSec, func(r *http.Request) string {
 		return ClientIP(r)
 	})
 }
 
-// MFALimit: 3/min per mfa_pending_id
-func MFALimit(rl *RateLimiter) func(http.Handler) http.Handler {
-	return rl.Limit("mfa", 3, 60, func(r *http.Request) string {
+// RegisterLimit limits registration requests per client IP.
+func RegisterLimit(rl *RateLimiter, max, windowSec int) func(http.Handler) http.Handler {
+	return rl.Limit("register", max, windowSec, func(r *http.Request) string {
+		return ClientIP(r)
+	})
+}
+
+// PARLimit limits pushed authorization requests.
+//
+// Falls back to the peer address because no "client_id" context value is set before the
+// handler runs, so the intended per-client key is unavailable here.
+func PARLimit(rl *RateLimiter, max, windowSec int) func(http.Handler) http.Handler {
+	return rl.Limit("par", max, windowSec, func(r *http.Request) string {
+		return ClientIP(r)
+	})
+}
+
+// MFALimit limits second-factor submissions, per pending challenge when the handler has
+// supplied one, otherwise per client IP.
+func MFALimit(rl *RateLimiter, max, windowSec int) func(http.Handler) http.Handler {
+	return rl.Limit("mfa", max, windowSec, func(r *http.Request) string {
 		if v := r.Context().Value("mfa_pending_id"); v != nil {
-			if s, ok := v.(string); ok {
+			if s, ok := v.(string); ok && s != "" {
 				return s
 			}
 		}

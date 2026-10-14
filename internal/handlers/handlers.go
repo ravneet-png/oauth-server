@@ -174,6 +174,16 @@ type Config struct {
 	// only correct for plain-http development; config validation enforces the pairing.
 	SessionCookieSecure bool
 
+	// SessionCookieName is config.security.session_cookie_name. The login handler
+	// writes the cookie under this name and the session middleware reads it back, so
+	// both sides share one source of truth.
+	SessionCookieName string
+
+	// DevMode is true when the process runs in a development/test environment. It
+	// gates dev-only conveniences such as the /signup/verify-dev email-verification
+	// shortcut, which must never be reachable in production.
+	DevMode bool
+
 	// EmailVerificationTTL is how long a signup token stays redeemable.
 	EmailVerificationTTL time.Duration
 	PasswordResetTTL     time.Duration

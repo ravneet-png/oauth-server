@@ -291,6 +291,8 @@ func New(ctx context.Context, opts Options) (*App, error) {
 			SessionIdleTTL:            cfg.Security.SessionIdleTimeout(),
 			SessionAbsoluteTTL:        cfg.Security.SessionAbsoluteTimeout(),
 			SessionCookieSecure:       cfg.Security.SessionCookieSecure,
+			SessionCookieName:         cfg.Security.SessionCookieName,
+			DevMode:                   cfg.IsDevelopment(),
 			EmailVerificationTTL:      cfg.Tokens.EmailVerificationTTL(),
 			PasswordResetTTL:          email.DefaultResetTTL,
 			HealthDependencies:        true,
@@ -405,22 +407,31 @@ func handlerTable(d *handlers.Deps) httpapi.Handlers {
 // both a limited and an unlimited deployment.
 func middlewareConfig(cfg *config.Config, d *handlers.Deps, log *slog.Logger) httpapi.MiddlewareConfig {
 	mw := httpapi.MiddlewareConfig{
-		Recover: middleware.RecoverMiddlewareWithLogger(log),
-		Headers: headersMiddleware(cfg, log),
-		Access:  middleware.AccessLogMiddleware(log),
-		CSRF:    csrfMiddleware(cfg, d),
-		Session: middleware.SessionMiddleware(d.Sessions),
-		Admin:   middleware.RequireAdmin("/login", d.Users),
+		Correlation: middleware.CorrelationIDMiddleware,
+		Recover:     middleware.RecoverMiddlewareWithLogger(log),
+		Headers:     headersMiddleware(cfg, log),
+		Access:      middleware.AccessLogMiddleware(log),
+		CSRF:        csrfMiddleware(cfg, d),
+		Session:     middleware.SessionMiddleware(d.Sessions, cfg.Security.SessionCookieName),
+		Admin:       middleware.RequireAdmin("/login", d.Users),
 	}
 
 	if cfg.RateLimit.Enabled {
-		rl := middleware.NewRateLimiter(d.Cache.Raw())
+		rl := middleware.NewRateLimiter(d.Cache.Raw(), cfg.RateLimit.FailClosed)
+		login := cfg.RateLimit.Login.PerIP
+		mfa := cfg.RateLimit.MFA.PerPending
+		tok := cfg.RateLimit.Token.PerClient
+		par := cfg.RateLimit.PAR.PerClient
+		reg := cfg.RateLimit.Register.PerIP
 		mw.RateLimit = map[string]func(http.Handler) http.Handler{
-			"login":    middleware.LoginLimit(rl),
-			"mfa":      middleware.MFALimit(rl),
-			"par":      middleware.PARLimit(rl),
-			"token":    middleware.TokenLimit(rl),
-			"register": middleware.RegisterLimit(rl),
+			// /authorize has no dedicated rule in config; it is a browser GET and its
+			// per-IP budget is the login rule, which is the closest existing control.
+			"authorize": middleware.AuthorizeLimit(rl, login.Limit, login.WindowSeconds),
+			"login":     middleware.LoginLimit(rl, login.Limit, login.WindowSeconds),
+			"mfa":       middleware.MFALimit(rl, mfa.Limit, mfa.WindowSeconds),
+			"par":       middleware.PARLimit(rl, par.Limit, par.WindowSeconds),
+			"token":     middleware.TokenLimit(rl, tok.Limit, tok.WindowSeconds),
+			"register":  middleware.RegisterLimit(rl, reg.Limit, reg.WindowSeconds),
 		}
 	}
 

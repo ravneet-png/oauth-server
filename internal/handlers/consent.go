@@ -126,8 +126,7 @@ func (d *Deps) consentSubmit(w http.ResponseWriter, r *http.Request) {
 			d.renderError(w, r, http.StatusInternalServerError, "server_error")
 			return
 		}
-		_ = d.AuditLog.Record(r.Context(), st.auditRC(),
-			domain.NewAuditEvent(domain.AuditConsentRevoked, domain.AuditOutcomeSuccess, &st.userID), req.ClientID)
+		_ = d.AuditLog.ConsentRevoked(r.Context(), st.auditRC(), st.userID, req.ClientID)
 		d.redirectConsentError(w, r, req, domain.NewAccessDenied("the user denied the request"))
 		return
 	}
@@ -153,8 +152,7 @@ func (d *Deps) consentSubmit(w http.ResponseWriter, r *http.Request) {
 		d.renderError(w, r, http.StatusInternalServerError, "server_error")
 		return
 	}
-	_ = d.AuditLog.Record(r.Context(), st.auditRC(),
-		domain.NewAuditEvent(domain.AuditConsentGranted, domain.AuditOutcomeSuccess, &st.userID), req.ClientID)
+	_ = d.AuditLog.ConsentGranted(r.Context(), st.auditRC(), st.userID, req.ClientID)
 
 	d.resolveConsent(w, r, st, req, selected)
 }
@@ -163,7 +161,7 @@ func (d *Deps) consentSubmit(w http.ResponseWriter, r *http.Request) {
 func (d *Deps) resolveConsent(w http.ResponseWriter, r *http.Request, st reqState, req *domain.AuthRequest, scopes []string) {
 	sessionID := st.sessionID
 	_, code, err := flows.ApproveAuthorization(r.Context(),
-		d.AuthReqs, d.Codes, d.ClientSess, d.Families,
+		d.AuthReqs, d.Codes, d.ClientSess, d.Families, d.Pool,
 		flows.ApproveParams{
 			AuthRequestID:      req.ID,
 			UserID:             st.userID,
@@ -176,8 +174,7 @@ func (d *Deps) resolveConsent(w http.ResponseWriter, r *http.Request, st reqStat
 		d.consentFailure(w, r, req, err)
 		return
 	}
-	_ = d.AuditLog.Record(r.Context(), st.auditRC(),
-		domain.NewAuditEvent(domain.AuditTokenIssued, domain.AuditOutcomeSuccess, &st.userID), req.ClientID)
+	_ = d.AuditLog.TokenIssued(r.Context(), st.auditRC(), req.ClientID, st.userID, "authorization_code")
 
 	target, buildErr := authorizationRedirectURL(req.RedirectURI, code, deref(req.State), d.Config.Issuer)
 	if buildErr != nil {

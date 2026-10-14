@@ -128,7 +128,6 @@ security:
   session_cookie_name: "oauth_session"
   session_cookie_secure: false
   session_cookie_same_site: "Lax"
-  auth_request_cookie_name: "__Host-oauth_auth_req"
 
   # DEFENCE IN DEPTH ONLY. The post-login redirect target is always resolved
   # from a server-side auth_requests row addressed by id. This list is never

@@ -83,12 +83,16 @@ Getting this backwards in either direction is bad: cascading on a logout logs
 users out constantly, and not cascading on real theft leaves a stolen family
 alive.
 
-`rotated` is also **not sufficient** on its own. Benign concurrent refreshes are
-routine (a browser tab waking, a retried request, two components fetching in
-parallel). A family revocation fires on all of them and logs the user out
-mid-session. A grace window returns the already-issued successor instead of
-cascading; without it, `concurrent_consume_test.go` passes and production is a
-support queue.
+`rotated` reuse is treated as theft on **every** appearance: there is no grace
+window. A client can fire two refreshes in parallel (a browser tab waking, a
+retried request, two components fetching at once), and exactly one wins the
+rotation; the other presents a token that is already rotated. That late arrival
+is indistinguishable from a thief replaying a stolen token, so it is refused and
+the family is revoked. A grace window that answered the late request with the
+already-issued successor would soften this, but the successor's plaintext is
+never stored (only its digest is), so it cannot be re-issued; the family revoke
+is the behaviour `refresh_reuse_test.go` pins, and the losing request's client
+simply retries with the successor the winner already received.
 
 ### Token families have an absolute ceiling
 

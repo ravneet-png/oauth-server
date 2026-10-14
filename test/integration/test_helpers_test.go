@@ -311,12 +311,16 @@ type parResponse struct {
 	ExpiresIn  int    `json:"expires_in"`
 }
 
+// sessionCookieName mirrors security.session_cookie_name in the test config. Kept as a
+// const so the jar walk and the config literal cannot drift apart.
+const sessionCookieName = "oauth_session"
+
 // getSessionCookie extracts the session cookie value from the client's jar.
 func getSessionCookie(t *testing.T, e *env) string {
 	t.Helper()
 	serverURL, _ := url.Parse(e.Server.URL)
 	for _, c := range e.Client.Jar.Cookies(serverURL) {
-		if c.Name == "session" {
+		if c.Name == sessionCookieName {
 			return c.Value
 		}
 	}

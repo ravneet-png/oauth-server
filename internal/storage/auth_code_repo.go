@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"oauth-server/internal/domain"
@@ -58,7 +59,17 @@ func scanAuthCode(row interface{ Scan(...any) error }) (*domain.AuthCode, error)
 // in the 302 redirect to the client; a row holding it would make a database read
 // sufficient to impersonate the user at /token.
 func (r *AuthCodeRepo) Create(ctx context.Context, c *domain.AuthCode) error {
-	const q = `
+	return createAuthCode(ctx, r.pool, c)
+}
+
+// CreateTx is Create executed on a caller-supplied transaction, so the authorization
+// code is inserted atomically with the request claim and the family row it references.
+func (r *AuthCodeRepo) CreateTx(ctx context.Context, tx pgx.Tx, c *domain.AuthCode) error {
+	return createAuthCode(ctx, tx, c)
+}
+
+func createAuthCode(ctx context.Context, q queryer, c *domain.AuthCode) error {
+	const query = `
 		INSERT INTO auth_codes (
 			code_hash, client_id, user_id, session_id, sid, family_id,
 			scope, redirect_uri,
@@ -66,7 +77,7 @@ func (r *AuthCodeRepo) Create(ctx context.Context, c *domain.AuthCode) error {
 			expires_at
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`
 
-	_, err := r.pool.Exec(ctx, q,
+	_, err := q.Exec(ctx, query,
 		c.CodeHash, c.ClientID, c.UserID, c.SessionID, c.SID, c.FamilyID,
 		c.Scope, c.RedirectURI,
 		c.CodeChallenge, c.CodeChallengeMethod, c.Nonce, c.AuthTime,

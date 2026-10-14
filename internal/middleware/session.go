@@ -19,26 +19,24 @@ type userIDKeyType struct{}
 var sessionKey = sessionKeyType{}
 var userIDKey = userIDKeyType{}
 
-// SessionCookieName is the cookie carrying the browser session id.
-//
-// Exported because the login handler must set the cookie this middleware reads, and two
-// literals that must agree is a login that works in development and fails in production
-// after the name is changed in one place.
-const SessionCookieName = "session"
-
 // SetSessionCookie writes the session cookie.
+//
+// cookieName is threaded in rather than held as a package constant: config already
+// carries security.session_cookie_name (and requires the __Host- prefix in production),
+// and a second hardcoded literal is exactly how a deployment ends up hardened in config
+// but plain in behaviour.
 //
 // HttpOnly unconditionally: no script has a reason to read the session id, and a cookie
 // that is readable makes every XSS a full account takeover. SameSite=Lax because the
 // session must survive top-level navigations back from an identity provider, which
 // SameSite=Strict would drop, while still not being attached to cross-site POSTs.
-func SetSessionCookie(w http.ResponseWriter, sessionID string, expires time.Time, secure bool) {
+func SetSessionCookie(w http.ResponseWriter, cookieName, sessionID string, expires time.Time, secure bool) {
 	maxAge := int(time.Until(expires).Seconds())
 	if maxAge < 1 {
 		maxAge = 1
 	}
 	http.SetCookie(w, &http.Cookie{
-		Name:     SessionCookieName,
+		Name:     cookieName,
 		Value:    sessionID,
 		Path:     "/",
 		MaxAge:   maxAge,
@@ -52,9 +50,9 @@ func SetSessionCookie(w http.ResponseWriter, sessionID string, expires time.Time
 //
 // The value is left empty deliberately: a logout that only shortens the lifetime leaves
 // the id on the user's disk, where a borrowed laptop can read it.
-func ClearSessionCookie(w http.ResponseWriter, secure bool) {
+func ClearSessionCookie(w http.ResponseWriter, cookieName string, secure bool) {
 	http.SetCookie(w, &http.Cookie{
-		Name:     SessionCookieName,
+		Name:     cookieName,
 		Value:    "",
 		Path:     "/",
 		MaxAge:   -1,
@@ -67,12 +65,15 @@ func ClearSessionCookie(w http.ResponseWriter, secure bool) {
 // SessionMiddleware loads the session from the session cookie, refreshes its
 // idle expiry, and puts user_id + session_id in the context.
 //
+// cookieName is the same name SetSessionCookie writes; both must come from
+// config.security.session_cookie_name so the read and the write cannot disagree.
+//
 // If the cookie is missing or the session is invalid/expired, the request
 // continues without a session in context. Use RequireSession to enforce presence.
-func SessionMiddleware(repo *storage.SessionRepo) func(http.Handler) http.Handler {
+func SessionMiddleware(repo *storage.SessionRepo, cookieName string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			cookie, err := r.Cookie(SessionCookieName)
+			cookie, err := r.Cookie(cookieName)
 			if err != nil {
 				next.ServeHTTP(w, r)
 				return

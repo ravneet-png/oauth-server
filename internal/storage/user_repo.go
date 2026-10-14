@@ -180,18 +180,31 @@ func (r *UserRepo) UpdatePasswordHash(ctx context.Context, userID, passwordHash 
 		userID, passwordHash)
 }
 
-// UpdateMFALastCounter records the highest TOTP counter consumed.
+// UpdateMFALastCounter records the highest TOTP counter consumed, but only if it
+// advances the high-water mark, and reports whether this call advanced it.
 //
-// Called after a TOTP code verifies. Kept as a separate single-statement method
-// rather than folded into UpdateMFA so the high-water mark can only ever move
-// forward: enrolment resets it to 0 explicitly, which is the one case where a
-// decrease is correct.
-func (r *UserRepo) UpdateMFALastCounter(ctx context.Context, userID string, counter int64) error {
-	return r.execUserUpdate(ctx, formatOp("users", "update_mfa_counter"),
-		`UPDATE users
-		    SET mfa_last_counter = GREATEST(mfa_last_counter, $2), updated_at = now()
-		  WHERE user_id = $1`,
-		userID, counter)
+// Called after a TOTP code verifies. The predicate mfa_last_counter < $2 is the
+// replay guard, not a micro-optimisation: two concurrent submissions of one code both
+// verify against the same stored counter, and this conditional UPDATE is what lets
+// exactly one of them observe rows-affected = 1 and the other observe 0. A blind
+// assignment (or GREATEST) writes both without rejecting either, so the same code
+// authorises two logins.
+//
+// False means the counter was already at or above this value: a replay. The caller
+// must refuse the code. Enrolment resets the counter to 0 explicitly, which is the one
+// case where the stored value legitimately decreases.
+func (r *UserRepo) UpdateMFALastCounter(ctx context.Context, userID string, counter int64) (bool, error) {
+	const q = `
+		UPDATE users
+		   SET mfa_last_counter = $2, updated_at = now()
+		 WHERE user_id = $1
+		   AND mfa_last_counter < $2`
+
+	tag, err := r.pool.Exec(ctx, q, userID, counter)
+	if err != nil {
+		return false, classifyError(err, formatOp("users", "update_mfa_counter"))
+	}
+	return tag.RowsAffected() > 0, nil
 }
 
 // UpdateEmailVerified sets the email_verified flag.

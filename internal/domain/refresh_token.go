@@ -40,9 +40,10 @@ type RefreshToken struct {
 	// find the access tokens issued alongside a replayed code.
 	SourceAuthCodeHash *string
 
-	// ReplacedByHash points at the token that superseded this one, which is
-	// what supports the grace window that keeps a benign concurrent refresh from
-	// being read as theft.
+	// ReplacedByHash points at the token that superseded this one, recording the
+	// lineage of a rotation. No reuse decision reads it: replaying a rotated token
+	// always cascades, because the successor's plaintext is not stored and cannot
+	// be re-issued to a client that arrives late.
 	ReplacedByHash *string
 
 	Scope []string

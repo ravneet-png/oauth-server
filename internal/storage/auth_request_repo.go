@@ -7,6 +7,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"oauth-server/internal/domain"
@@ -133,13 +134,23 @@ func (r *AuthRequestRepo) SetSessionID(ctx context.Context, id, sessionID string
 // The boolean is what lets the caller branch. Returning only an error would force
 // the loser of the race to discover the conflict by re-reading, which races again.
 func (r *AuthRequestRepo) MarkCompleted(ctx context.Context, id string) (bool, error) {
-	const q = `
+	return markCompleted(ctx, r.pool, id)
+}
+
+// MarkCompletedTx is MarkCompleted executed on a caller-supplied transaction, so a
+// claim can be made atomic with the rows the approval produces.
+func (r *AuthRequestRepo) MarkCompletedTx(ctx context.Context, tx pgx.Tx, id string) (bool, error) {
+	return markCompleted(ctx, tx, id)
+}
+
+func markCompleted(ctx context.Context, q queryer, id string) (bool, error) {
+	const query = `
 		UPDATE auth_requests
 		   SET completed_at = now()
 		 WHERE id = $1
 		   AND completed_at IS NULL`
 
-	tag, err := r.pool.Exec(ctx, q, id)
+	tag, err := q.Exec(ctx, query, id)
 	if err != nil {
 		return false, classifyError(err, formatOp("auth_requests", "complete"))
 	}

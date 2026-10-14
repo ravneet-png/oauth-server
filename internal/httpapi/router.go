@@ -72,12 +72,13 @@ type Handlers struct {
 type MiddlewareConfig struct {
 	// Global, applied to every route including health.
 	//
-	// All three have the middleware shape func(http.Handler) http.Handler, which is
+	// All of these have the middleware shape func(http.Handler) http.Handler, which is
 	// why they are stored as functions rather than as built handlers: a handler built
 	// before the route is known cannot be, since it would have nothing to delegate to.
-	Recover func(http.Handler) http.Handler
-	Headers func(http.Handler) http.Handler
-	Access  func(http.Handler) http.Handler
+	Correlation func(http.Handler) http.Handler
+	Recover     func(http.Handler) http.Handler
+	Headers     func(http.Handler) http.Handler
+	Access      func(http.Handler) http.Handler
 
 	// CSRF applies to state-changing requests. PerRoute below decides where.
 	CSRF func(http.Handler) http.Handler
@@ -145,17 +146,24 @@ func CSRFChain(mw func(http.Handler) http.Handler) func(http.Handler) http.Handl
 //
 // The order is deliberate and load-bearing:
 //
-//   - Recover is outermost. It is the only thing that can convert a panic into a 500,
-//     and it can only do that if it is outside everything that can panic. Inside the
-//     session lookup it would catch only panics from the handler, leaving the database
-//     driver ones to kill the process.
+//   - Correlation is outermost. It only reads an incoming header and writes an outgoing
+//     one, so it cannot panic, and every layer inside it — Recover's panic log, the
+//     access log, and each handler — should be able to name the request it reports on.
+//     A correlation id minted inside Recover is invisible to Recover's own output.
+//   - Recover is next. It is the only thing that can convert a panic into a 500, and it
+//     can only do that if it is outside everything that can panic. Inside the session
+//     lookup it would catch only panics from the handler, leaving the database driver
+//     ones to kill the process.
 //   - Headers is next, so a recovered panic still returns a response with the security
 //     headers rather than a bare 500 that a browser might render as a foreign document.
-//   - Session is last of the three. It is the most expensive and the only one that
-//     touches Redis on a public endpoint, and nothing it does needs to happen before a
-//     response header is decided.
+//   - Session is last. It is the most expensive and the only one that touches Redis on a
+//     public endpoint, and nothing it does needs to happen before a response header is
+//     decided.
 func (c MiddlewareConfig) GlobalChain() []func(http.Handler) http.Handler {
-	chain := make([]func(http.Handler) http.Handler, 0, 4)
+	chain := make([]func(http.Handler) http.Handler, 0, 5)
+	if c.Correlation != nil {
+		chain = append(chain, c.Correlation)
+	}
 	if c.Recover != nil {
 		chain = append(chain, c.Recover)
 	}
@@ -260,7 +268,13 @@ func NewRouter(h Handlers, mw MiddlewareConfig) *Router {
 	}
 	browser("/login", h.Login, "login")
 	browser("/logout", h.Logout, "")
+	// /mfa is the path the login and authorization flows redirect to after a
+	// password; /mfa/challenge is the action the challenge form posts to and the
+	// path its "use a backup code" link navigates to. Both must resolve to the
+	// challenge handler, or an MFA-enabled user renders the form and then 404s on
+	// submit.
 	browser("/mfa", h.MFA, "mfa")
+	browser("/mfa/challenge", h.MFA, "mfa")
 	browser("/mfa/enroll", h.MFAEnroll, "")
 	browser("/consent", h.Consent, "")
 
@@ -299,9 +313,8 @@ func NewRouter(h Handlers, mw MiddlewareConfig) *Router {
 	// must answer even when a session store or Redis is down.
 	r.mux.Handle(http.MethodGet+" /health", withMiddleware(resolve("/health", h.Health), global...))
 
-	// Static assets are served from the embedded FS with a long cache. Content-addressed
-	// is not used here, so the ETag plus no-transform below is what stops a stale
-	// stylesheet from outliving a deploy.
+	// Static assets use stable /assets/<filename> URLs instead of content-fingerprinted
+	// names, so staticHandler requires clients to revalidate before reusing an asset.
 	r.mux.Handle("GET /assets/", resolve("/assets/", staticHandler()))
 
 	// Everything unmatched. Registered without a method so it catches any verb.
@@ -331,8 +344,7 @@ func notWired(name string) http.Handler {
 
 // staticHandler serves the embedded asset FS.
 //
-// Long max-age because assets are served under a versioned path, and no-transform so an
-// intermediary does not re-compress into a variant the ETag no longer matches.
+// Asset URLs are not content-fingerprinted, so clients must revalidate them after a deploy.
 func staticHandler() http.Handler {
 	assets, err := ui.StaticFS()
 	if err != nil {
@@ -344,7 +356,7 @@ func staticHandler() http.Handler {
 	fileServer := http.StripPrefix("/assets/", http.FileServer(http.FS(assets)))
 
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable, no-transform")
+		w.Header().Set("Cache-Control", "no-cache, no-transform")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		fileServer.ServeHTTP(w, req)
 	})

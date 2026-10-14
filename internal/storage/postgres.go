@@ -325,3 +325,35 @@ func (p *Pool) Close() {
 		p.pool.Close()
 	}
 }
+
+// InTx runs fn inside a single transaction, committing when fn returns nil and
+// rolling back otherwise.
+//
+// Exists so a multi-statement operation that must be all-or-nothing — the claim of
+// an authorization request together with the code, family and session rows it
+// produces — can share one transaction without every repository gaining a parallel
+// transaction-bound constructor. The repositories expose Tx-suffixed methods that
+// accept the pgx.Tx this hands to fn.
+//
+// The rollback is deferred and its error ignored: once the commit succeeds there is
+// nothing to undo, and reporting a rollback failure after a successful commit would
+// make a committed write look like a failure. If the commit itself failed, the
+// deferred rollback is what keeps a partial write from surviving.
+func (p *Pool) InTx(ctx context.Context, fn func(tx pgx.Tx) error) error {
+	if p.pool == nil {
+		return errors.New("storage: InTx on nil pool")
+	}
+	tx, err := p.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("storage: begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if err := fn(tx); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("storage: commit transaction: %w", err)
+	}
+	return nil
+}

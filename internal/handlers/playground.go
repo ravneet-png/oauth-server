@@ -211,7 +211,16 @@ func (d *Deps) signupPost(w http.ResponseWriter, r *http.Request) {
 }
 
 // VerifyEmailDev handles POST /signup/verify-dev to mark the signed-in user's email verified in local dev.
+//
+// Refused outside development: the endpoint skips the emailed token entirely, so
+// reachable in production it is a way for any signed-in account to mark its own address
+// verified without controlling the mailbox. 404 rather than 403 so the endpoint is not
+// even discoverable by probing.
 func (d *Deps) VerifyEmailDev(w http.ResponseWriter, r *http.Request) {
+	if !d.Config.DevMode {
+		http.NotFound(w, r)
+		return
+	}
 	if r.Method != http.MethodPost {
 		httpapi.MethodNotAllowed(w, http.MethodPost)
 		return

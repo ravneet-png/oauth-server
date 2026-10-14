@@ -363,7 +363,7 @@ func testConfig() *config.Config {
 			MFASkewStep:                   0,
 			SessionIdleTimeoutSeconds:     3600,
 			SessionAbsoluteTimeoutSeconds: 86400,
-			SessionCookieName:             "oauth_session",
+			SessionCookieName:             sessionCookieName,
 			SessionCookieSecure:           false,
 			SessionCookieSameSite:         "Lax",
 			AllowedInternalPaths:          []string{"/authorize", "/consent", "/mfa", "/login", "/verify-email"},

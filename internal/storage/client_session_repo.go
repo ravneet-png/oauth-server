@@ -7,6 +7,7 @@ package storage
 import (
 	"context"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"oauth-server/internal/domain"
@@ -49,13 +50,23 @@ func scanClientSession(row interface{ Scan(...any) error }) (*domain.ClientSessi
 // value. With DO NOTHING the insert would be silently skipped and the client would
 // keep a sid that the server no longer recognises.
 func (r *ClientSessionRepo) Upsert(ctx context.Context, cs *domain.ClientSession) error {
-	const q = `
+	return upsertClientSession(ctx, r.pool, cs)
+}
+
+// UpsertTx is Upsert executed on a caller-supplied transaction, so the client-session
+// attachment is written atomically with the authorization code that names its sid.
+func (r *ClientSessionRepo) UpsertTx(ctx context.Context, tx pgx.Tx, cs *domain.ClientSession) error {
+	return upsertClientSession(ctx, tx, cs)
+}
+
+func upsertClientSession(ctx context.Context, q queryer, cs *domain.ClientSession) error {
+	const query = `
 		INSERT INTO client_sessions (sid, session_id, client_id)
 		VALUES ($1, $2, $3)
 		ON CONFLICT (session_id, client_id)
 		DO UPDATE SET sid = EXCLUDED.sid`
 
-	_, err := r.pool.Exec(ctx, q, cs.SID, cs.SessionID, cs.ClientID)
+	_, err := q.Exec(ctx, query, cs.SID, cs.SessionID, cs.ClientID)
 	if err != nil {
 		return classifyError(err, formatOp("client_sessions", "upsert"))
 	}

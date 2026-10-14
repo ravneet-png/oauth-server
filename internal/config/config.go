@@ -167,7 +167,6 @@ type SecurityConfig struct {
 	SessionCookieName     string
 	SessionCookieSecure   bool
 	SessionCookieSameSite string
-	AuthRequestCookieName string
 
 	AllowedInternalPaths []string
 }
@@ -544,6 +543,13 @@ func (c *Config) Validate(s Secrets) error {
 	return nil
 }
 
+// IsDevelopment reports whether the process runs in a development/test environment.
+//
+// Exported because the handler layer needs the same judgement as config validation
+// (for example, to refuse to mount dev-only shortcuts in production) without importing
+// this package and re-deriving the rule.
+func (c *Config) IsDevelopment() bool { return c.isDevelopment() }
+
 func (c *Config) isDevelopment() bool {
 	switch strings.ToLower(c.Env) {
 	case "dev", "development", "local", "test", "testing":
@@ -696,7 +702,6 @@ func Decode(v *viper.Viper, env []string) *Config {
 	cfg.Security.SessionCookieName = v.GetString("security.session_cookie_name")
 	cfg.Security.SessionCookieSecure = v.GetBool("security.session_cookie_secure")
 	cfg.Security.SessionCookieSameSite = v.GetString("security.session_cookie_same_site")
-	cfg.Security.AuthRequestCookieName = v.GetString("security.auth_request_cookie_name")
 	cfg.Security.AllowedInternalPaths = v.GetStringSlice("security.allowed_internal_paths")
 
 	cfg.Registration.ClientRegistrationEnabled = v.GetBool("registration.client_registration_enabled")
