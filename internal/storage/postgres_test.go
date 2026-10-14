@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/spf13/viper"
 )
 
@@ -26,6 +27,58 @@ func testDBURL(t *testing.T) string {
 		t.Skip("TEST_DATABASE_URL is not set; skipping PostgreSQL-backed test")
 	}
 	return url
+}
+
+// storageTestSchema is the isolated schema every storage test operates in.
+//
+// Isolated because several tests here are destructive at table or schema scope:
+// signing_key_rotation_test deletes every row in signing_keys, and the migration test
+// drops and recreates the schema it runs in. Left on the public schema those run against
+// whatever database TEST_DATABASE_URL names, which for a developer whose stack is up is
+// the database the server itself uses — and deleting the active signing key leaves the
+// server unable to boot. A dedicated schema exercises the same migrations, constraints and
+// partial indexes while confining the damage to a schema nothing serves from. The same
+// pattern isolates test/integration (oauth_integration_test) and internal/app
+// (oauth_app_test).
+const storageTestSchema = "oauth_storage_test"
+
+// storageSchemaURL returns TEST_DATABASE_URL with search_path pointed at the storage test
+// schema, creating the schema first. Skips the test when TEST_DATABASE_URL is unset, via
+// testDBURL.
+func storageSchemaURL(t *testing.T) string {
+	t.Helper()
+	base := testDBURL(t)
+
+	ctx := context.Background()
+	// The schema has to exist before migrations run inside it, so connect on the default
+	// search_path, create the schema, and only then hand back a search_path-qualified URL.
+	admin, err := pgx.Connect(ctx, base)
+	if err != nil {
+		t.Fatalf("connect for schema setup: %v", err)
+	}
+	defer func() { _ = admin.Close(ctx) }()
+
+	// Identifier.Sanitize quotes the name, which matters because it is interpolated into
+	// DDL where a bare string would be a syntax error at best.
+	if _, err := admin.Exec(ctx, "CREATE SCHEMA IF NOT EXISTS "+pgx.Identifier{storageTestSchema}.Sanitize()); err != nil {
+		t.Fatalf("create storage test schema: %v", err)
+	}
+
+	return withSearchPath(base)
+}
+
+// withSearchPath appends a search_path setting to the database URL.
+//
+// Set through the URL rather than with a SET on the pool because pgxpool hands every
+// connection to a different backend: a search_path set on one acquired connection does not
+// apply to the next checkout, so the migrations would land in the public schema while the
+// queries ran against the isolated one.
+func withSearchPath(url string) string {
+	sep := "?"
+	if strings.ContainsAny(url, "?") {
+		sep = "&"
+	}
+	return url + sep + "search_path=" + storageTestSchema
 }
 
 func TestLoadConfigConvertsMilliseconds(t *testing.T) {
@@ -101,7 +154,7 @@ func TestRunMigrationsHonoursCancelledContext(t *testing.T) {
 }
 
 // No t.Parallel: TestMigrationsApplyAndAreIdempotent drops and recreates the
-// public schema, so it must not overlap with any other test touching the same
+// storage test schema, so it must not overlap with any other test touching the same
 // database. Running these in parallel meant the schema could disappear between
 // this test's pool creation and its query, producing an intermittent failure
 // that looks like a pool bug but is a test-ordering bug.
@@ -156,26 +209,28 @@ func TestNewPoolFailsOnUnreachableDatabase(t *testing.T) {
 	}
 }
 
-// resetDatabase drops and recreates the public schema.
+// resetDatabase drops and recreates the storage test schema.
 //
-// This test needs an empty database, and it also needs to leave one behind that
-// is exactly what the migrations produce. Running it against a database that
-// already has the schema applied by other means fails with "relation already
+// This test needs an empty schema, and it also needs to leave one behind that
+// is exactly what the migrations produce. Running it against a schema that
+// already has the migrations applied by other means fails with "relation already
 // exists", because golang-migrate has no way to know the schema is already
-// correct when its own bookkeeping table is absent. Truncating public schema is
-// destructive, so it is confined to a test that skips without TEST_DATABASE_URL.
+// correct when its own bookkeeping table is absent. Dropping a schema is
+// destructive, so it is confined to the isolated test schema and to a test that
+// skips without TEST_DATABASE_URL.
 func resetDatabase(t *testing.T, db *sql.DB) {
 	t.Helper()
 	ctx := context.Background()
-	if _, err := db.ExecContext(ctx, `DROP SCHEMA public CASCADE; CREATE SCHEMA public;`); err != nil {
+	ident := pgx.Identifier{storageTestSchema}.Sanitize()
+	if _, err := db.ExecContext(ctx, "DROP SCHEMA "+ident+" CASCADE; CREATE SCHEMA "+ident+";"); err != nil {
 		t.Fatalf("reset schema: %v", err)
 	}
 }
 
-// Destructive: this drops the public schema. It must run serially, after any
+// Destructive: this drops the storage test schema. It must run serially, after any
 // other test that has an open pool against this database.
 func TestMigrationsApplyAndAreIdempotent(t *testing.T) {
-	url := testDBURL(t)
+	url := storageSchemaURL(t)
 	ctx := context.Background()
 
 	admin, err := sql.Open("pgx/v5", url)

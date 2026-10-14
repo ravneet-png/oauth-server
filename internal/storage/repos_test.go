@@ -36,14 +36,18 @@ import (
 	"oauth-server/internal/domain"
 )
 
-// newTestPool builds a pool against the test database and registers cleanup.
+// newTestPool builds a pool scoped to the storage test schema and registers cleanup.
+//
+// Scoped to the isolated schema rather than public so that the table-wide deletes in this
+// package (signing_keys especially) can never touch the rows the server itself uses. See
+// storageTestSchema.
 //
 // Migrated on every test run rather than once per package: a previous test that
 // mutated the schema, or a developer whose database predates a migration, both
 // otherwise produce failures that look like repository bugs.
 func newTestPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	url := testDBURL(t)
+	url := storageSchemaURL(t)
 
 	if err := RunMigrations(context.Background(), url); err != nil {
 		t.Fatalf("RunMigrations: %v", err)

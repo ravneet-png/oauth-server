@@ -29,7 +29,8 @@ import (
 // unique ID can make that true when a neighbour has installed a key.
 //
 // Safe because Go runs tests in a package sequentially unless they call t.Parallel,
-// and nothing here does.
+// and nothing here does. It is also confined to the isolated storage test schema
+// (storageTestSchema), so it can never delete the signing key the running server loaded.
 func clearSigningKeys(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	if _, err := pool.Exec(context.Background(), `DELETE FROM signing_keys`); err != nil {

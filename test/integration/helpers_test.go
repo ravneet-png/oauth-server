@@ -43,10 +43,13 @@ var (
 
 	// The suite gets its own schema inside the same database.
 	//
-	// `go test ./...` runs package binaries in parallel, and internal/storage's tests
-	// write to the same tables this suite truncates between every test. Sharing the
-	// public schema means whichever package truncates last decides whether the other's
-	// rows still exist, which shows up as a different flaky failure per run. A separate
+	// `go test ./...` runs package binaries in parallel, and several database-backed
+	// packages write to the same tables this suite truncates between every test. Each such
+	// package therefore isolates into its own schema (internal/storage into
+	// oauth_storage_test, internal/app into oauth_app_test). Sharing one schema means
+	// whichever package truncates last decides whether the others' rows still exist, which
+	// shows up as a different flaky failure per run — and, when that shared schema is
+	// public, as a test run deleting the rows the running server depends on. A separate
 	// schema keeps one server and one set of migrations, and makes the interference
 	// impossible rather than unlikely.
 	testSchema = envOr("TEST_DB_SCHEMA", "oauth_integration_test")
