@@ -36,7 +36,11 @@ func (d *Deps) Discovery(w http.ResponseWriter, r *http.Request) {
 			"refresh_token",
 			"client_credentials",
 		},
-		"subject_types_supported":               []string{"public", "pairwise"},
+		// Pairwise is reserved in the client schema but not implemented: `sub` is
+		// always public. Advertising it here would tell a relying party it can
+		// register a pairwise client and receive a stable per-sector identifier,
+		// which no code produces.
+		"subject_types_supported":               []string{"public"},
 		"id_token_signing_alg_values_supported": []string{"RS256"},
 		"token_endpoint_auth_methods_supported": []string{
 			"client_secret_basic",

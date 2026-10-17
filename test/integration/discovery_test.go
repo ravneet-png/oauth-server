@@ -47,6 +47,14 @@ func TestDiscoveryDocumentAdvertisesTheRealEndpoints(t *testing.T) {
 	if len(methods) == 0 {
 		t.Error("code_challenge_methods_supported is empty; PKCE is mandatory for public clients")
 	}
+
+	// Only public is implemented. The client schema reserves pairwise, but nothing
+	// computes a per-sector subject, so advertising it would over-claim and send a
+	// relying party down a path the server cannot serve.
+	subjects, _ := doc["subject_types_supported"].([]any)
+	if len(subjects) != 1 || subjects[0] != "public" {
+		t.Errorf("subject_types_supported = %v, want [public]", doc["subject_types_supported"])
+	}
 }
 
 func TestJWKSExposesAnActiveVerificationKey(t *testing.T) {
