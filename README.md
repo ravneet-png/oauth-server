@@ -172,7 +172,7 @@ Key sections in `config.yaml`:
 * `database` — connection URL, pool sizes, statement timeout
 * `redis` — URL, revocation TTL padding, fail-closed on introspection
 * `tokens` — TTLs for access, refresh, ID tokens, auth codes, PAR, etc. (all **integer seconds**)
-* `keys` — algorithm, key size, rotation interval, retention window, clock skew
+* `keys` — signing algorithm (**RS256 only**; ES256/PS256/EdDSA are reserved in the schema but not implemented, and are rejected at boot), key size, rotation interval, retention window, clock skew
 * `rate_limit` — per-endpoint limits (per IP, per account, per client)
 * `security` — password policy, Argon2 parameters, audit pepper env var, session cookie settings, allowed internal paths
 * `registration` — dynamic client registration (disabled by default)

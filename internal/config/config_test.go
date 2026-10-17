@@ -278,6 +278,23 @@ func TestRetentionMustOutliveAccessToken(t *testing.T) {
 	}
 }
 
+// TestSigningAlgorithmMustBeImplemented: keys.algorithm accepts only RS256. ES256
+// is in the schema so a future implementation can rotate into it, but this server
+// only ever generates and signs RS256. Accepting ES256 here would start a server
+// that ignores the setting and signs RS256 anyway, which reads as a working
+// configuration while being silently wrong.
+func TestSigningAlgorithmMustBeImplemented(t *testing.T) {
+	env := withEnv("OAUTH_KEYS_ALGORITHM=ES256")
+
+	_, _, err := Load(LoaderOptions{Path: "../../config.yaml", Environment: env})
+	if err == nil {
+		t.Fatal("Load accepted keys.algorithm=ES256, which is not implemented")
+	}
+	if !strings.Contains(err.Error(), "keys.algorithm") {
+		t.Errorf("error does not name the setting: %v", err)
+	}
+}
+
 // TestRefreshAbsoluteTTLMustNotBeBelowIdle: an absolute ceiling below the idle
 // lifetime is unreachable, so a family never terminates however long it rotates.
 func TestRefreshAbsoluteTTLMustNotBeBelowIdle(t *testing.T) {

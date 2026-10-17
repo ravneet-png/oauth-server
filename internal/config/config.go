@@ -430,12 +430,19 @@ func (c *Config) Validate(s Secrets) error {
 		problems = append(problems, "redis.url is required")
 	}
 
+	// Algorithm. Only RS256 is implemented: key generation always produces an RSA
+	// key and the signer only ever emits RS256. The schema accepts ES256, PS256 and
+	// EdDSA so a future implementation can rotate into them, but accepting one here
+	// would start a server that signs with RS256 regardless and quietly ignores the
+	// setting, so the loader refuses anything it cannot honour.
+	if c.Keys.Algorithm != "RS256" {
+		problems = append(problems, fmt.Sprintf(
+			"keys.algorithm must be RS256: only RS256 is implemented, got %q", c.Keys.Algorithm))
+	}
+
 	// Key retention versus token lifetime. A key destroyed before every token it
 	// signed has expired turns a valid token into a 500 for its holder, and the
 	// cause is not visible from the token.
-	if c.Keys.Algorithm != "RS256" && c.Keys.Algorithm != "ES256" {
-		problems = append(problems, "keys.algorithm must be RS256 or ES256")
-	}
 	minRetentionHours := c.Tokens.AccessTTLSeconds/3600 + 2
 	if c.Keys.RetentionHours < minRetentionHours {
 		problems = append(problems, fmt.Sprintf(

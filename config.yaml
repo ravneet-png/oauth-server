@@ -52,6 +52,9 @@ tokens:
   mfa_pending_ttl: 300
 
 keys:
+  # RS256 only. ES256, PS256 and EdDSA are reserved in the schema for a future
+  # implementation, but this server only generates and signs RS256, so the loader
+  # rejects any other value rather than start a server that ignores it.
   algorithm: "RS256"
   key_size: 2048
   rotation_days: 30
