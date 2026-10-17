@@ -43,23 +43,58 @@ cp .env.example .env   # optional in development; required in production
 docker compose up -d   # builds the app and starts postgres, redis and mailhog
 ```
 
-Open **`http://localhost:8080`** in your browser to use the interactive **OAuth 2.1 + OIDC Developer Console**:
+Two URLs matter once the stack is up:
 
-1. Create an account at `/signup`, verify the address from the email, and sign in. The login page links to `/forgot-password`; reset links open a working `/reset-password` form backed by the existing JSON recovery endpoints.
-2. On `/`, the console builds a cryptographically random WebCrypto S256 PKCE pair, generates fresh `state` and `nonce`, and pushes the request to `POST /par` by default. You can turn PAR off to compare the direct `/authorize` route. The public demo client uses no client secret.
-3. Approve the unchanged consent screen (`/consent`). The callback at `/callback` checks that `state` matches the pending tab transaction and that the returned RFC 9207 `iss` exactly matches the configured issuer before enabling a manual `POST /token` code exchange. It can call `/userinfo`, `/introspect`, refresh rotation, replay detection, and `/revoke` for the issued token. JWT headers and claims are decoded for inspection only; the browser does **not** verify signatures or claims.
+| URL | What it is |
+| --- | --- |
+| `http://localhost:8080` | The OAuth 2.1 + OIDC Developer Console — the server itself |
+| `http://localhost:8025` | MailHog, the local mail catcher that receives verification and reset emails |
 
-Password recovery is self-service account recovery, not the OAuth resource-owner password grant. `POST /forgot-password` always returns the same `202` message so it cannot be used to probe whether an address is registered; a one-time mail is sent only when an eligible account exists. `GET /reset-password` strips the token from the address bar and submits `POST /reset-password`, which updates the password and revokes that account's sessions and refresh tokens. Unusable tokens return `401` with `invalid_token`.
-
-The console also exposes the existing `client_credentials` grant for a pre-registered confidential client. A secret is accepted only for that one request, is never persisted to local/session storage, and the input is cleared after submission. A browser cannot protect a confidential secret, so use this only with a throwaway development client; use server-to-server authentication in production. There is no UI for dynamic client registration, which remains disabled by default, and the OAuth resource-owner password grant remains unsupported.
-
-The server applies its embedded migrations automatically on startup, and also provides `cmd/migrate` (`make migrate-up`, `make migrate-down`, `make migrate-status`) for standalone schema management. In development (`OAUTH_ENV=development`), it also auto-seeds a public PKCE client (`client_id: demo-client`, `redirect_uri: http://localhost:8080/callback`) so the authorization-code browser flow works out of the box without manual `psql` or `curl` commands.
+The server applies its embedded migrations automatically on startup, and also
+provides `cmd/migrate` (`make migrate-up`, `make migrate-down`,
+`make migrate-status`) for standalone schema management. In development
+(`OAUTH_ENV=development`) it auto-seeds a public PKCE client (`client_id:
+demo-client`, `redirect_uri: http://localhost:8080/callback`) so the
+authorization-code browser flow works out of the box without manual `psql` or
+`curl`.
 
 In development (`OAUTH_ENV=development`, set by `docker-compose.yml`) the server
 generates ephemeral key material when `OAUTH_KEY_ENCRYPTION_KEY` and
 `OAUTH_AUDIT_PEPPER` are unset, so a fresh checkout boots without any setup.
 Encrypted rows do not survive a restart with generated secrets. Set both to 32
 bytes of hex (`openssl rand -hex 32`) in any real deployment.
+
+## Try it end-to-end
+
+Run the whole authorization flow in the browser:
+
+1. **Create an account.** Open `http://localhost:8080/` and choose *Create account*, or go to `/signup`. Signup sends a verification email — it does not land in a normal inbox, it is delivered to MailHog.
+2. **Verify the address.** Either click *Verify email in development* on the console home (instant, no email), or open `http://localhost:8025`, find the message and click its verification link. You are now signed in.
+3. **Start a sign-in flow.** On `/`, pick the requested scopes (`openid`, `profile`, `email`, `offline_access`), leave *Push the request to `POST /par`* enabled, and click *Launch authorization flow*. The console builds a fresh WebCrypto S256 PKCE pair plus `state` and `nonce` and pushes the request to `POST /par`. Turn PAR off to compare the direct `/authorize` route; the public demo client uses no client secret.
+4. **Approve consent.** On `/consent`, approve the unchanged request. The callback at `/callback` checks that `state` matches the pending transaction and that the returned RFC 9207 `iss` exactly matches the configured issuer before enabling the code exchange.
+5. **Exchange and inspect.** On `/callback`, exchange the code at `POST /token` for an access token, refresh token and ID token. From the same page you can call `/userinfo` and `/introspect`, exercise refresh rotation and replay detection, and `/revoke` the issued token. JWT headers and claims are decoded for inspection only; the browser does **not** verify signatures or claims.
+6. **Read the metadata.** Back on `/`, the *Protocol & metadata inspector* fetches `/.well-known/openid-configuration`, `/.well-known/jwks.json` and `/health`.
+
+### Account recovery
+
+Password recovery is self-service account recovery, not the OAuth resource-owner
+password grant. `POST /forgot-password` always returns the same `202` message so
+it cannot be used to probe whether an address is registered; a one-time mail is
+sent only when an eligible account exists. `GET /reset-password` strips the token
+from the address bar and submits `POST /reset-password`, which updates the
+password and revokes that account's sessions and refresh tokens. Unusable tokens
+return `401` with `invalid_token`.
+
+### Client credentials grant
+
+The console also exposes the existing `client_credentials` grant for a
+pre-registered confidential client. A secret is accepted only for that one
+request, is never persisted to local/session storage, and the input is cleared
+after submission. A browser cannot protect a confidential secret, so use this
+only with a throwaway development client; use server-to-server authentication in
+production. There is no UI for dynamic client registration, which remains
+disabled by default, and the OAuth resource-owner password grant remains
+unsupported.
 
 ## Security Features
 
