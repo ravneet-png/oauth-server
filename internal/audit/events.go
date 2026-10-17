@@ -170,6 +170,35 @@ func (l *Logger) ConsentRevoked(ctx context.Context, rc RequestContext, userID, 
 	return l.recordWithActor(ctx, rc, ev, userID)
 }
 
+// DeviceAuthorized records a user approving an RFC 8628 device authorization.
+//
+// The user is the actor and the client goes in its own column, so an investigator can
+// enumerate every device a given application has been granted without reasoning about
+// the pseudonymous actor. A device approval is the moment a second device gains
+// access to the account, which is why it is recorded with the approving human rather
+// than as an anonymous token grant.
+func (l *Logger) DeviceAuthorized(ctx context.Context, rc RequestContext, userID, clientID string) error {
+	ev := domain.NewAuditEvent(domain.AuditDeviceAuthorized, domain.AuditOutcomeSuccess, nil).
+		WithClient(clientID).
+		WithResource("client", clientID).
+		WithReason("device authorization approved")
+	return l.recordWithActor(ctx, rc, ev, userID)
+}
+
+// DeviceDenied records a user refusing a device authorization.
+//
+// Recorded with outcome denied rather than failure: the request was, in fact, refused
+// by the person it concerned, which is the event of interest, not an error. The pair
+// with DeviceAuthorized is what lets an operator see both halves of a device-flow
+// decision.
+func (l *Logger) DeviceDenied(ctx context.Context, rc RequestContext, userID, clientID string) error {
+	ev := domain.NewAuditEvent(domain.AuditDeviceDenied, domain.AuditOutcomeDenied, nil).
+		WithClient(clientID).
+		WithResource("client", clientID).
+		WithReason("device authorization denied")
+	return l.recordWithActor(ctx, rc, ev, userID)
+}
+
 // TokenIssued records an access token grant.
 //
 // grantType and clientID are what make this searchable; the token itself never

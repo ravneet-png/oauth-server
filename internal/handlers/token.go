@@ -10,6 +10,7 @@ package handlers
 import (
 	"net/http"
 
+	"oauth-server/internal/domain"
 	"oauth-server/internal/flows"
 	"oauth-server/internal/httpapi"
 	"oauth-server/internal/oautherr"
@@ -87,6 +88,28 @@ func (d *Deps) Token(w http.ResponseWriter, r *http.Request) {
 			d.Audit,
 			d.AccessBldr,
 			d.Config.ClientCredTTL,
+			d.Config.TokenEndpoint,
+		)
+	case domain.GrantDeviceCode:
+		// The device grant has no `code`; the secret is the device_code the device
+		// obtained at /device_authorization, and the pending/denied/expired outcomes
+		// are delivered as the RFC 8628 error codes the client polls against.
+		resp, err = flows.ExchangeDeviceCode(
+			r.Context(),
+			client,
+			stringParam(r, "device_code"),
+			d.DeviceCodes,
+			d.AccessToks,
+			d.RefreshToks,
+			d.Families,
+			d.Users,
+			d.Audit,
+			d.AccessBldr,
+			d.IDBldr,
+			d.Config.AccessTTL,
+			d.Config.RefreshTTL,
+			d.Config.IDTTL,
+			d.Config.RefreshAbsoluteTTL,
 			d.Config.TokenEndpoint,
 		)
 	default:

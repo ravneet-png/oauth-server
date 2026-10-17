@@ -36,6 +36,7 @@ func TestDiscoveryDocumentAdvertisesTheRealEndpoints(t *testing.T) {
 		"introspection_endpoint":                "http://localhost:8080/introspect",
 		"pushed_authorization_request_endpoint": "http://localhost:8080/par",
 		"end_session_endpoint":                  "http://localhost:8080/logout",
+		"device_authorization_endpoint":         "http://localhost:8080/device_authorization",
 	}
 	for key, expected := range want {
 		if got, _ := doc[key].(string); got != expected {
@@ -46,6 +47,19 @@ func TestDiscoveryDocumentAdvertisesTheRealEndpoints(t *testing.T) {
 	methods, _ := doc["code_challenge_methods_supported"].([]any)
 	if len(methods) == 0 {
 		t.Error("code_challenge_methods_supported is empty; PKCE is mandatory for public clients")
+	}
+
+	// The endpoint is only useful to a client that the grant list says may call it:
+	// advertising one without the other is a half-open door.
+	grants, _ := doc["grant_types_supported"].([]any)
+	var hasDeviceGrant bool
+	for _, g := range grants {
+		if g == "urn:ietf:params:oauth:grant-type:device_code" {
+			hasDeviceGrant = true
+		}
+	}
+	if !hasDeviceGrant {
+		t.Errorf("grant_types_supported = %v, want it to include the device_code grant", doc["grant_types_supported"])
 	}
 
 	// Only public is implemented. The client schema reserves pairwise, but nothing

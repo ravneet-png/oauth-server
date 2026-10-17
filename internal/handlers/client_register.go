@@ -146,7 +146,7 @@ func (d *Deps) buildClientFromRegistration(req clientRegistrationRequest) (*doma
 	}
 	for _, g := range grantTypes {
 		switch g {
-		case domain.GrantAuthorizationCode, domain.GrantRefreshToken, domain.GrantClientCredentials:
+		case domain.GrantAuthorizationCode, domain.GrantRefreshToken, domain.GrantClientCredentials, domain.GrantDeviceCode:
 		case "implicit", "password":
 			return nil, "", errInvalidMetadata("implicit and password grants are not supported")
 		default:

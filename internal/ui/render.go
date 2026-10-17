@@ -305,6 +305,38 @@ type CallbackData struct {
 	ResponseValid     bool
 }
 
+// Device authorization page stages. One page serves the whole verification flow, and
+// Stage decides which one it renders, so the handler names a decision rather than a
+// template per step.
+const (
+	DeviceStageEnter    = "enter"
+	DeviceStageConsent  = "consent"
+	DeviceStageApproved = "approved"
+	DeviceStageDenied   = "denied"
+)
+
+// DeviceData renders device.html, the RFC 8628 verification page.
+type DeviceData struct {
+	Base
+
+	// Stage is one of the DeviceStage* constants.
+	Stage string
+
+	// UserCode is the code the user is entering or has confirmed. Pre-filled on the
+	// entry form so a mistyped or rejected code is fixable without retyping.
+	UserCode string
+
+	// ClientName is shown on the consent and result screens, so the user knows which
+	// application is asking before approving and after doing so.
+	ClientName string
+
+	// RequestedScopes are the scopes that will be granted; ExcludedScopes are those
+	// that will not, with the reason. Both are shown so a withheld scope is visible
+	// rather than silently missing.
+	RequestedScopes []ScopeItem
+	ExcludedScopes  []ExcludedScope
+}
+
 // StaticFS returns the static asset filesystem.
 func StaticFS() (fs.FS, error) {
 	sub, err := fs.Sub(staticFS, "static")
@@ -330,6 +362,7 @@ const (
 	PageUnauthorized   = "unauthorized"
 	PageHome           = "home"
 	PageCallback       = "callback"
+	PageDevice         = "device"
 )
 
 // Render writes a page with security headers.
@@ -433,6 +466,8 @@ func nonceOf(data any) string {
 		return d.Nonce
 	case CallbackData:
 		return d.Nonce
+	case DeviceData:
+		return d.Nonce
 	default:
 		return ""
 	}
@@ -472,6 +507,8 @@ func correlationID(data any) string {
 	case HomeData:
 		return d.RequestID
 	case CallbackData:
+		return d.RequestID
+	case DeviceData:
 		return d.RequestID
 	default:
 		return ""

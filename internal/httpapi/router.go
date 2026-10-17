@@ -38,6 +38,12 @@ type Handlers struct {
 	Discovery      http.Handler
 	ClientRegister http.Handler
 
+	// DeviceAuthorization is the RFC 8628 device authorization endpoint (machine,
+	// JSON); Device is the verification page the user opens on a second device
+	// (browser, session and CSRF).
+	DeviceAuthorization http.Handler
+	Device              http.Handler
+
 	// Browser endpoints. Session cookie, CSRF token, HTML pages.
 	Home           http.Handler
 	Callback       http.Handler
@@ -245,6 +251,11 @@ func NewRouter(h Handlers, mw MiddlewareConfig) *Router {
 	api("/.well-known/jwks.json", http.MethodGet, h.JWKS, "")
 	api("/register", http.MethodPost, h.ClientRegister, "register")
 
+	// Device authorization is a machine endpoint that authenticates a client and
+	// answers JSON, so it sits with the other protocol endpoints and shares the token
+	// endpoint's per-client budget: both are authenticated credential-accepting paths.
+	api("/device_authorization", http.MethodPost, h.DeviceAuthorization, "token")
+
 	// Account API submissions are machine endpoints: JSON in, JSON out, no cookie.
 	// Registration, reset request and reset completion share a rate-limit key because
 	// they are all unauthenticated write paths.
@@ -277,6 +288,11 @@ func NewRouter(h Handlers, mw MiddlewareConfig) *Router {
 	browser("/mfa/challenge", h.MFA, "mfa")
 	browser("/mfa/enroll", h.MFAEnroll, "")
 	browser("/consent", h.Consent, "")
+
+	// The device verification page. A browser page, so it carries the CSRF token its
+	// Approve/Deny form submits; the user_code may also arrive in the query from a
+	// verification_uri_complete link.
+	browser("/device", h.Device, "")
 
 	// Email verification is a top-level navigation from a mail client, so it is a GET.
 	// The path the templates generate is /verify-email; /users/verify-email is the

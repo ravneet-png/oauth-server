@@ -65,6 +65,7 @@ type Deps struct {
 	Families    *storage.TokenFamilyRepo
 	MFA         *storage.MFARepo
 	EmailVerif  *storage.EmailVerificationRepo
+	DeviceCodes *storage.DeviceCodeRepo
 	Audit       *storage.AuditRepo
 	SigningKeys *storage.SigningKeyRepo
 
@@ -127,6 +128,13 @@ type Config struct {
 	// RegistrationEndpoint is the dynamic client registration endpoint.
 	RegistrationEndpoint string
 
+	// DeviceAuthorizationEndpoint is the RFC 8628 device authorization endpoint, and
+	// DeviceVerificationEndpoint is the browser page the user opens. Advertised in
+	// discovery and returned as verification_uri, so both come from one place here
+	// exactly as the other endpoint URLs do.
+	DeviceAuthorizationEndpoint string
+	DeviceVerificationEndpoint  string
+
 	// MFAIssuer is the display name used in TOTP provisioning URIs.
 	//
 	// Separate from Issuer because a URL-shaped issuer (the normal OAuth issuer)
@@ -147,6 +155,12 @@ type Config struct {
 	PARTTL        time.Duration
 	AuthReqTTL    time.Duration
 	ClientCredTTL time.Duration
+
+	// DeviceCodeTTL is how long a device authorization stays pollable, and
+	// DeviceCodeInterval is the minimum spacing between polls the client is told to
+	// honour (and held to when it does not).
+	DeviceCodeTTL      time.Duration
+	DeviceCodeInterval time.Duration
 
 	MinPasswordLen int
 

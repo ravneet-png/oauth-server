@@ -35,6 +35,7 @@ func (d *Deps) Discovery(w http.ResponseWriter, r *http.Request) {
 			"authorization_code",
 			"refresh_token",
 			"client_credentials",
+			"urn:ietf:params:oauth:grant-type:device_code",
 		},
 		// Pairwise is reserved in the client schema but not implemented: `sub` is
 		// always public. Advertising it here would tell a relying party it can
@@ -55,6 +56,7 @@ func (d *Deps) Discovery(w http.ResponseWriter, r *http.Request) {
 
 		"pushed_authorization_request_endpoint": c.PAREndpoint,
 		"end_session_endpoint":                  c.EndSessionEndpoint,
+		"device_authorization_endpoint":         c.DeviceAuthorizationEndpoint,
 
 		"backchannel_logout_supported":         true,
 		"backchannel_logout_session_supported": true,

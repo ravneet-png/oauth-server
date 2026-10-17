@@ -179,6 +179,17 @@ func NewExpiredToken(desc string) *OAuthError {
 	return &OAuthError{Code: ErrCodeExpiredToken, Description: desc, HTTPStatus: http.StatusBadRequest}
 }
 
+// NewTokenAccessDenied reports that the user refused a device authorization
+// request (RFC 8628 section 3.5). It is a distinct constructor from
+// NewAccessDenied because the two are delivered on paths with different status
+// rules: this one reaches the token endpoint, where RFC 6749 section 5.2 makes
+// every error a 400 except invalid_client, whereas NewAccessDenied carries the
+// 403 that /authorize renders when it must answer a browser directly instead of
+// redirecting.
+func NewTokenAccessDenied(desc string) *OAuthError {
+	return &OAuthError{Code: ErrCodeAccessDenied, Description: desc, HTTPStatus: http.StatusBadRequest}
+}
+
 // NewInvalidScope reports scopes that are malformed, unknown, or not permitted
 // for this client.
 func NewInvalidScope(desc string) *OAuthError {

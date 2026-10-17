@@ -1,0 +1,79 @@
+{{define "device"}}{{template "layout_head" .}}
+{{if eq .Stage "enter"}}
+<div class="notice">
+  <p>Enter the code shown on your device to continue.</p>
+</div>
+
+<form method="post" action="/device" class="form">
+  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+  <label class="field" for="user_code">
+    <span class="field__label">Device code</span>
+    <input class="field__input field__input--code" id="user_code" name="user_code" type="text"
+           inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false"
+           maxlength="9" value="{{.UserCode}}" autofocus>
+    <span class="field__hint">Eight characters, like WDJB-MJHT. The hyphen is optional.</span>
+  </label>
+  <div class="button-row">
+    <button class="button button--primary" type="submit">Continue</button>
+  </div>
+</form>
+
+{{else if eq .Stage "consent"}}
+<div class="notice">
+  <p><strong>{{.ClientName}}</strong> is asking to connect to your account.</p>
+</div>
+
+<form method="post" action="/device" class="form">
+  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+  <input type="hidden" name="user_code" value="{{.UserCode}}">
+
+  {{if .RequestedScopes}}
+  <fieldset class="fieldset">
+    <legend class="fieldset__legend">This will share</legend>
+    <ul class="scopes">
+      {{range .RequestedScopes}}
+      <li class="scope">
+        <span class="scope__title">{{.Title}}</span>
+        {{if .Description}}<span class="scope__description">{{.Description}}</span>{{end}}
+      </li>
+      {{end}}
+    </ul>
+  </fieldset>
+  {{else}}
+  <p class="muted">Nothing will be shared. Approving will sign the device in.</p>
+  {{end}}
+
+  {{if .ExcludedScopes}}
+  <div class="notice notice--warning">
+    <h2 class="notice__title">Not shared</h2>
+    <p class="muted">These were requested, but they will not be granted:</p>
+    <ul class="scopes">
+      {{range .ExcludedScopes}}
+      <li class="scope scope--excluded">
+        <span class="scope__title">{{if .Title}}{{.Title}}{{else}}{{.Name}}{{end}}</span>
+        <span class="scope__description">{{.Reason}}</span>
+      </li>
+      {{end}}
+    </ul>
+  </div>
+  {{end}}
+
+  <div class="button-row">
+    <button class="button button--primary" type="submit" name="decision" value="allow">Approve</button>
+    <button class="button button--secondary" type="submit" name="decision" value="deny">Deny</button>
+  </div>
+</form>
+
+{{else if eq .Stage "approved"}}
+<div class="notice notice--success" role="status">
+  <p><strong>{{.ClientName}}</strong> is now connected. You can close this page and return to your device.</p>
+</div>
+<p class="muted">If your device is still waiting, give it a moment and it will pick up the approval.</p>
+
+{{else if eq .Stage "denied"}}
+<div class="notice notice--warning" role="status">
+  <p>The request from <strong>{{.ClientName}}</strong> was denied. Nothing was shared.</p>
+</div>
+<p class="muted">If this was not you, change your password and review your active sessions.</p>
+{{end}}
+{{template "layout_foot" .}}{{end}}
