@@ -147,6 +147,35 @@ VALUES ('c_m2m', 'M2M', '{}', ARRAY['client_credentials'], 'client_secret_basic'
 ON CONFLICT DO NOTHING;
 \echo 'ok  accepted: client_credentials client with no redirect_uri (expected)'
 
+\echo '=== 5b. device authorization grant (RFC 8628) ==='
+-- A device client is public and has no redirect_uri: the user goes to a
+-- verification page, not back to the client. Both the grant allow-list and the
+-- redirect rule must permit it. Asserted positively, because the failure mode
+-- this guards against is the schema rejecting a valid device client, which is
+-- what it did before migration 007.
+INSERT INTO clients (client_id, client_name, redirect_uris, grant_types,
+                     token_endpoint_auth_method, client_secret_hash)
+VALUES ('c_device', 'Device App', '{}',
+        ARRAY['urn:ietf:params:oauth:grant-type:device_code'], 'none', NULL)
+ON CONFLICT DO NOTHING;
+\echo 'ok  accepted: device-grant client with no redirect_uri (expected)'
+
+-- A device client may also carry refresh_token and still omit the redirect.
+INSERT INTO clients (client_id, client_name, redirect_uris, grant_types,
+                     token_endpoint_auth_method, client_secret_hash)
+VALUES ('c_device_rt', 'Device App', '{}',
+        ARRAY['urn:ietf:params:oauth:grant-type:device_code','refresh_token'], 'none', NULL)
+ON CONFLICT DO NOTHING;
+\echo 'ok  accepted: device-grant client with refresh_token and no redirect_uri (expected)'
+
+-- But pairing the device grant with authorization_code still demands one.
+SELECT assert_rejects('device grant mixed with authorization_code and no redirect_uri',
+  $$INSERT INTO clients (client_id, client_name, redirect_uris, grant_types,
+      token_endpoint_auth_method, client_secret_hash)
+    VALUES ('c_bad11', 'Bad', '{}',
+            ARRAY['urn:ietf:params:oauth:grant-type:device_code','authorization_code'],
+            'client_secret_basic', 'x')$$);
+
 \echo '=== 6. signing key lifecycle ==='
 
 -- This section deletes its own rows first. The rotation below deliberately moves
@@ -357,7 +386,7 @@ DELETE FROM users WHERE user_id = 'u1';
 \echo 'ok  DELETE users succeeded after explicit child cleanup (expected)'
 
 -- clients are ON DELETE CASCADE: deleting a client is a full teardown.
-DELETE FROM clients WHERE client_id IN ('c_conf','c_public','c_m2m');
+DELETE FROM clients WHERE client_id IN ('c_conf','c_public','c_m2m','c_device','c_device_rt');
 \echo 'ok  client teardown cascaded to token_families and auth_codes (expected)'
 
 DROP FUNCTION assert_rejects(text, text);

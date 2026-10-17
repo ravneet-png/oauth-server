@@ -614,6 +614,7 @@ func TestClientState(t *testing.T) {
 		{name: "requires PAR", got: enabled.RequiresPAR(), want: true},
 		{name: "code grant can use a redirect", got: enabled.CanUseRedirect(GrantAuthorizationCode), want: true},
 		{name: "client_credentials needs no redirect", got: enabled.CanUseRedirect(GrantClientCredentials), want: false},
+		{name: "device grant needs no redirect", got: enabled.CanUseRedirect(GrantDeviceCode), want: false},
 		{name: "a code grant with no registered redirect cannot proceed", got: (&Client{}).CanUseRedirect(GrantAuthorizationCode), want: false},
 	}
 

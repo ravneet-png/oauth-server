@@ -152,8 +152,16 @@ func (c *Client) RequiresPAR() bool {
 }
 
 // CanUseRedirect reports whether grant needs a registered redirect URI at all.
-// Only client_credentials can proceed without one, because it never involves a
-// browser redirect.
+//
+// client_credentials and the device grant both proceed without one, because
+// neither ever redirects a browser: the first is machine to machine, and the
+// second sends the user to a verification page they type a code into rather than
+// back to the client. Every other grant is delivered through a redirect and so
+// needs a registered URI. The schema's clients_redirect_uris_chk encodes the same
+// rule.
 func (c *Client) CanUseRedirect(grant string) bool {
-	return grant != GrantClientCredentials && len(c.RedirectURIs) > 0
+	if grant == GrantClientCredentials || grant == GrantDeviceCode {
+		return false
+	}
+	return len(c.RedirectURIs) > 0
 }
