@@ -47,7 +47,7 @@
       <form method="post" action="/signup/verify-dev" class="inline-form">
         <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
         <button type="submit" class="button button--secondary button--sm">Verify email in development</button>
-        <span class="field__hint">Or use the verification link delivered to Mailpit.</span>
+        <span class="field__hint">Or open <a href="http://localhost:8025" target="_blank" rel="noopener">MailHog</a> and click the emailed verification link.</span>
       </form>
       {{end}}
       <div class="button-row">
