@@ -37,7 +37,8 @@ func (d *Deps) EraseUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := d.Users.GetByID(r.Context(), userID); err != nil {
+	user, err := d.Users.GetByID(r.Context(), userID)
+	if err != nil {
 		httpapi.JSON(w, http.StatusNotFound, map[string]string{"error": "not_found"})
 		return
 	}
@@ -141,10 +142,28 @@ func (d *Deps) EraseUser(w http.ResponseWriter, r *http.Request) {
 			d.Logger.Warn("erase: anonymise session", "error", err.Error(), "session_id", sid)
 		}
 	}
-	if _, err := d.Audit.AnonymizeUser(r.Context(), userID); err != nil {
-		d.Logger.Error("erase: anonymise audit", "error", err.Error(), "correlation_id", st.correlationID)
-		httpapi.ServerError(w)
-		return
+	// The audit trail records the subject in more than one encoding, and AnonymizeUser
+	// matches a single identifier at a time, so each is redacted. Flows that log through
+	// the audit.Logger store the HMAC pseudonym of the account id (consent, token
+	// issuance), login stores the pseudonym of the email, and flows that call the
+	// repository directly store the raw account id. Passing only the raw id — as this
+	// call once did — matched none of the pseudonymised rows and left the actor, the
+	// session link and the user agent in place while reporting success.
+	identifiers := []string{
+		userID,
+		d.AuditLog.Pseudonym(userID),
+		user.Email,
+		d.AuditLog.Pseudonym(user.Email),
+	}
+	for _, identifier := range identifiers {
+		if identifier == "" {
+			continue
+		}
+		if _, err := d.Audit.AnonymizeUser(r.Context(), identifier); err != nil {
+			d.Logger.Error("erase: anonymise audit", "error", err.Error(), "correlation_id", st.correlationID)
+			httpapi.ServerError(w)
+			return
+		}
 	}
 
 	if err := d.Users.Delete(r.Context(), userID); err != nil {
