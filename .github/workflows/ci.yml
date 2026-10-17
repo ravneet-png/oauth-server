@@ -95,7 +95,7 @@ jobs:
       - name: Verify cgo-free static build
         run: CGO_ENABLED=0 go build -trimpath -o /dev/null ./cmd/server
 
-  # Exercise the raw SQL schema separately from the Go tests: apply the initial
+  # Exercise the raw SQL schema separately from the Go tests: apply every
   # migration, verify rollback leaves no tables, reapply, and assert constraints
   # and security indexes.
   schema:
@@ -118,20 +118,36 @@ jobs:
       DSN: postgres://oauth:oauth@localhost:5432/oauth?sslmode=disable
     steps:
       - uses: actions/checkout@v4
-      - name: Apply migration
-        run: psql "$DSN" -v ON_ERROR_STOP=1 -f migrations/001_initial_schema.up.sql
+      # Apply every migration in filename order, and roll every one back in
+      # reverse. Applying only 001 was equivalent to "all" while 002-005 were
+      # no-ops, but a later migration that changes the schema would slip past
+      # this job unnoticed, so the whole set is driven here.
+      - name: Apply migrations
+        run: |
+          for f in migrations/*.up.sql; do
+            echo "apply $f"
+            psql "$DSN" -v ON_ERROR_STOP=1 -f "$f"
+          done
       - name: Roll back
-        run: psql "$DSN" -v ON_ERROR_STOP=1 -f migrations/001_initial_schema.down.sql
-      - name: Assert the down migration dropped everything
+        run: |
+          for f in $(ls -r migrations/*.down.sql); do
+            echo "rollback $f"
+            psql "$DSN" -v ON_ERROR_STOP=1 -f "$f"
+          done
+      - name: Assert the down migrations dropped everything
         run: |
           n=$(psql "$DSN" -t -A -c "SELECT count(*) FROM pg_tables WHERE schemaname='public';")
           echo "tables remaining: $n"
           if [ "$n" != "0" ]; then
-            echo "::error::down migration leaked $n tables"
+            echo "::error::down migrations leaked $n tables"
             exit 1
           fi
-      - name: Re-apply migration
-        run: psql "$DSN" -v ON_ERROR_STOP=1 -f migrations/001_initial_schema.up.sql
+      - name: Re-apply migrations
+        run: |
+          for f in migrations/*.up.sql; do
+            echo "apply $f"
+            psql "$DSN" -v ON_ERROR_STOP=1 -f "$f"
+          done
       # constraints.sql sets ON_ERROR_STOP off internally, because most of its
       # statements are *supposed* to fail. psql therefore exits 0 even when an
       # assertion fails, so the output has to be inspected for TEST FAILED.

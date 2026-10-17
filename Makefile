@@ -83,24 +83,36 @@ docker-down: ## Stop the full stack
 # The schema-* targets below drive psql inside the container directly so they
 # can test the raw SQL migrations in isolation.
 
-schema-apply: ## Apply migrations via psql (requires an EMPTY database)
+schema-apply: ## Apply every migration via psql (requires an EMPTY database)
 	$(COMPOSE) up -d postgres
-	$(COMPOSE) exec -T postgres psql -q -v ON_ERROR_STOP=1 -U oauth -d oauth \
-	  -f /dev/stdin < migrations/001_initial_schema.up.sql
-	@echo "applied migrations/001_initial_schema.up.sql"
+	@for f in migrations/*.up.sql; do \
+	  echo "apply $$f"; \
+	  $(COMPOSE) exec -T postgres psql -q -v ON_ERROR_STOP=1 -U oauth -d oauth \
+	    -f /dev/stdin < $$f || exit 1; \
+	done
 
-# Every CREATE TABLE in the migration is deliberately bare, with no IF NOT
+# Every CREATE TABLE in the migrations is deliberately bare, with no IF NOT
 # EXISTS guard. A migration that silently no-ops against a drifted database is
 # worse than one that refuses, so re-applying over an existing schema is an
 # error by design. Use schema-reset to get to a known state; it is idempotent
-# because the down migration uses DROP TABLE IF EXISTS throughout.
+# because the down migrations use DROP TABLE IF EXISTS throughout.
+#
+# The files are applied in filename order and rolled back in reverse. Every
+# migration is applied, not just the first: a later migration that changes the
+# schema would otherwise be invisible to the constraint assertions below.
 
-schema-reset: ## Roll the schema all the way back, then re-apply it
+schema-reset: ## Roll every migration back, then re-apply them
 	$(COMPOSE) up -d postgres
-	$(COMPOSE) exec -T postgres psql -q -v ON_ERROR_STOP=1 -U oauth -d oauth \
-	  -f /dev/stdin < migrations/001_initial_schema.down.sql
-	$(COMPOSE) exec -T postgres psql -q -v ON_ERROR_STOP=1 -U oauth -d oauth \
-	  -f /dev/stdin < migrations/001_initial_schema.up.sql
+	@for f in `ls -r migrations/*.down.sql`; do \
+	  echo "rollback $$f"; \
+	  $(COMPOSE) exec -T postgres psql -q -v ON_ERROR_STOP=1 -U oauth -d oauth \
+	    -f /dev/stdin < $$f || exit 1; \
+	done
+	@for f in migrations/*.up.sql; do \
+	  echo "apply $$f"; \
+	  $(COMPOSE) exec -T postgres psql -q -v ON_ERROR_STOP=1 -U oauth -d oauth \
+	    -f /dev/stdin < $$f || exit 1; \
+	done
 	@echo "schema reset"
 
 schema-test: schema-reset ## Assert every CHECK and security index
@@ -108,16 +120,22 @@ schema-test: schema-reset ## Assert every CHECK and security index
 
 schema-roundtrip: ## Apply, roll back and re-apply 3x, asserting no tables leak
 	$(COMPOSE) up -d postgres
-	$(COMPOSE) exec -T postgres psql -q -v ON_ERROR_STOP=1 -U oauth -d oauth \
-	  -f /dev/stdin < migrations/001_initial_schema.down.sql
-	@for i in 1 2 3; do \
+	@for f in `ls -r migrations/*.down.sql`; do \
 	  $(COMPOSE) exec -T postgres psql -q -v ON_ERROR_STOP=1 -U oauth -d oauth \
-	    -f /dev/stdin < migrations/001_initial_schema.up.sql || exit 1; \
+	    -f /dev/stdin < $$f || exit 1; \
+	done
+	@for i in 1 2 3; do \
+	  for f in migrations/*.up.sql; do \
+	    $(COMPOSE) exec -T postgres psql -q -v ON_ERROR_STOP=1 -U oauth -d oauth \
+	      -f /dev/stdin < $$f || exit 1; \
+	  done; \
 	  n=`$(COMPOSE) exec -T postgres psql -t -A -U oauth -d oauth \
 	      -c "SELECT count(*) FROM pg_tables WHERE schemaname='public';"`; \
 	  echo "round $$i up   -> $$n tables"; \
-	  $(COMPOSE) exec -T postgres psql -q -v ON_ERROR_STOP=1 -U oauth -d oauth \
-	    -f /dev/stdin < migrations/001_initial_schema.down.sql || exit 1; \
+	  for f in `ls -r migrations/*.down.sql`; do \
+	    $(COMPOSE) exec -T postgres psql -q -v ON_ERROR_STOP=1 -U oauth -d oauth \
+	      -f /dev/stdin < $$f || exit 1; \
+	  done; \
 	  n=`$(COMPOSE) exec -T postgres psql -t -A -U oauth -d oauth \
 	      -c "SELECT count(*) FROM pg_tables WHERE schemaname='public';"`; \
 	  echo "round $$i down -> $$n tables"; \

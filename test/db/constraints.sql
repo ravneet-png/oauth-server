@@ -279,6 +279,66 @@ VALUES ('user.logout', 'act-1', '2001:db8::1', 'corr-1', '{"note":"x"}');
 SELECT assert_rejects('audit_log actor longer than 64 chars',
   $$INSERT INTO audit_log (event, actor) VALUES ('x', repeat('a', 65))$$);
 
+\echo '=== 13b. device authorization codes (RFC 8628) ==='
+
+-- A pending request is a bare placeholder: the client created it and no user has
+-- decided, so it must carry no subject.
+INSERT INTO device_codes (device_code_hash, user_code, client_id, status,
+                          interval_seconds, expires_at)
+VALUES ('dc_live', 'WDJBMJHT', 'c_conf', 'pending', 5, now() + interval '10 minutes')
+ON CONFLICT DO NOTHING;
+
+SELECT assert_rejects('pending device code with a subject',
+  $$INSERT INTO device_codes (device_code_hash, user_code, client_id, status, user_id,
+      interval_seconds, expires_at)
+    VALUES ('dc_bad1', 'BCDFGHJK', 'c_conf', 'pending', 'u1', 5, now() + interval '10 minutes')$$);
+
+-- An approved request must name a subject, or the token it mints identifies nobody.
+SELECT assert_rejects('approved device code with no subject',
+  $$INSERT INTO device_codes (device_code_hash, user_code, client_id, status,
+      interval_seconds, expires_at)
+    VALUES ('dc_bad2', 'BCDFGHJM', 'c_conf', 'approved', 5, now() + interval '10 minutes')$$);
+
+SELECT assert_rejects('unknown device code status',
+  $$INSERT INTO device_codes (device_code_hash, user_code, client_id, status,
+      interval_seconds, expires_at)
+    VALUES ('dc_bad3', 'BCDFGHJN', 'c_conf', 'redeemed', 5, now() + interval '10 minutes')$$);
+
+-- A zero interval removes the poll floor and lets a client drive the token
+-- endpoint in a tight loop.
+SELECT assert_rejects('non-positive device code interval',
+  $$INSERT INTO device_codes (device_code_hash, user_code, client_id, status,
+      interval_seconds, expires_at)
+    VALUES ('dc_bad4', 'BCDFGHJP', 'c_conf', 'pending', 0, now() + interval '10 minutes')$$);
+
+-- The user_code is unique among live requests: a second live row cannot reuse the
+-- code a user is currently looking at.
+SELECT assert_rejects('duplicate live user_code',
+  $$INSERT INTO device_codes (device_code_hash, user_code, client_id, status,
+      interval_seconds, expires_at)
+    VALUES ('dc_bad5', 'WDJBMJHT', 'c_conf', 'pending', 5, now() + interval '10 minutes')$$);
+
+-- A finished request frees its code. The partial index (WHERE status IN
+-- ('pending','approved')) is what makes that true; a plain UNIQUE would hold the
+-- code forever.
+INSERT INTO device_codes (device_code_hash, user_code, client_id, status, user_id,
+                          interval_seconds, expires_at, approved_at, consumed_at)
+VALUES ('dc_done', 'WDJBMJHT', 'c_conf', 'consumed', 'u1', 5, now() + interval '1 minute',
+        now(), now())
+ON CONFLICT DO NOTHING;
+\echo 'ok  accepted: a consumed code frees its user_code for reuse (expected)'
+
+-- User erasure is RESTRICT here too: an approved code still referencing the user
+-- blocks the delete until erasure clears it, which is what makes a forgotten table
+-- fail loudly rather than destroy the account halfway.
+INSERT INTO device_codes (device_code_hash, user_code, client_id, status, user_id,
+                          interval_seconds, expires_at, approved_at)
+VALUES ('dc_approved', 'BCDFGHJR', 'c_conf', 'approved', 'u1', 5,
+        now() + interval '10 minutes', now())
+ON CONFLICT DO NOTHING;
+SELECT assert_rejects('DELETE users while an approved device code exists (must RESTRICT)',
+  $$DELETE FROM users WHERE user_id = 'u1'$$);
+
 \echo '=== 14. delete policy: RESTRICT on the user, explicit erasure only ==='
 -- Nothing cascades a user's tokens, sessions or codes away. A forgotten table
 -- must fail loudly rather than quietly destroying the evidence trail.
@@ -290,6 +350,7 @@ DELETE FROM refresh_tokens   WHERE user_id = 'u1';
 DELETE FROM token_families   WHERE user_id = 'u1';
 DELETE FROM client_sessions  WHERE session_id = 's1';
 DELETE FROM auth_codes       WHERE user_id = 'u1';
+DELETE FROM device_codes     WHERE user_id = 'u1';
 DELETE FROM sessions         WHERE user_id = 'u1';
 \echo 'ok  children deleted; user row is now removable'
 DELETE FROM users WHERE user_id = 'u1';
