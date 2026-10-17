@@ -262,6 +262,15 @@ func (e *env) postFormBasic(path string, form url.Values, clientID, secret strin
 	return e.do(req)
 }
 
+// deleteWithCSRF sends a DELETE carrying the CSRF token in the header the middleware
+// accepts on a request that has no form body.
+func (e *env) deleteWithCSRF(path, csrfToken string) *response {
+	e.t.Helper()
+	req, _ := http.NewRequest(http.MethodDelete, e.url(path), nil)
+	req.Header.Set("X-CSRF-Token", csrfToken)
+	return e.do(req)
+}
+
 // body returns the response body as a string.
 func body(t *testing.T, resp *response) string {
 	t.Helper()

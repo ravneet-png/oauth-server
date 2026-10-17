@@ -4,6 +4,8 @@ package integration
 
 import (
 	"context"
+	"net/http"
+	"net/url"
 	"testing"
 )
 
@@ -127,11 +129,16 @@ func TestGDPREraseUserRemovesAllData(t *testing.T) {
 		t.Errorf("audit log count before erasure = %d, want >= 1", auditCount)
 	}
 
-	// NOW: Perform erasure via admin endpoint
-	// Call the user repo delete which should cascade
-	err = e.App.Deps.Users.Delete(context.Background(), user.UserID)
-	if err != nil {
-		t.Fatalf("erase user: %v", err)
+	// NOW: Perform erasure through the real administrative endpoint, so the test covers
+	// the handler's own work — token revocation, session and client-session teardown,
+	// audit pseudonymisation and back-channel delivery — rather than only the repository
+	// delete it delegates to. A direct Users.Delete call would leave the handler
+	// untested while still passing every assertion below.
+	admin := createAdmin(t, e2, "admin-erase-1", "admin-erase@example.test", "correct horse battery")
+	csrf := signInAdmin(t, e2, admin.Email, "correct horse battery")
+	resp := e2.deleteWithCSRF("/users/"+url.PathEscape(user.UserID), csrf)
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("erase user status = %d, want 204; body = %s", resp.StatusCode, body(t, resp))
 	}
 
 	// Verify ALL personal data is removed
@@ -238,34 +245,58 @@ func TestGDPREraseUserRemovesAllData(t *testing.T) {
 		t.Errorf("par requests count after erasure = %d, want 0", parCount)
 	}
 
-	// Audit log: actor and target scrubbed to 'DELETED', details scrubbed
-	// The audit log itself should still exist for compliance but with scrubbed data
+	// Audit log: the trail survives for compliance, but the subject is no longer
+	// referenced. The audit trail records the subject in more than one encoding, so the
+	// test checks all of them are gone: the raw account id and email, and the HMAC
+	// pseudonym of each, must not appear in the actor column, and the rows that were
+	// redacted must have had their identifying columns cleared.
 	var auditAfter int
 	err = e.DB.QueryRow(context.Background(),
 		`SELECT count(*) FROM audit_log`).Scan(&auditAfter)
 	if err != nil {
 		t.Fatalf("audit log after erasure: %v", err)
 	}
-	// Audit log entries should still exist (for compliance) but with scrubbed PII
-	// They should have actor='DELETED' and target='DELETED'
-	var scrubbedActor int
-	err = e.DB.QueryRow(context.Background(),
-		`SELECT count(*) FROM audit_log WHERE actor = 'DELETED' AND target = 'DELETED'`).Scan(&scrubbedActor)
-	if err != nil {
-		t.Fatalf("audit log scrubbed query: %v", err)
-	}
-	if scrubbedActor == 0 {
-		t.Error("audit log should have entries with actor='DELETED' and target='DELETED' after erasure")
+	if auditAfter == 0 {
+		t.Error("audit log was emptied; the trail must survive erasure for compliance")
 	}
 
-	// Details should be scrubbed (not contain email, user_id, etc.)
-	var detailsHavePII int
+	var redacted int
 	err = e.DB.QueryRow(context.Background(),
-		`SELECT count(*) FROM audit_log WHERE details::text ILIKE '%alice@example.test%' OR details::text ILIKE '%`+user.UserID+`%'`).Scan(&detailsHavePII)
+		`SELECT count(*) FROM audit_log WHERE actor = 'DELETED' AND session_id IS NULL AND ip_address IS NULL AND user_agent IS NULL`).Scan(&redacted)
+	if err != nil {
+		t.Fatalf("audit log redaction query: %v", err)
+	}
+	if redacted == 0 {
+		t.Error("no audit entry was redacted to actor='DELETED' with its identifying columns cleared")
+	}
+
+	// The pseudonym is a join key: given the pepper and a candidate address it
+	// re-identifies every row, so an actor that still carries it is not erased. The
+	// erasure event itself names the subject in its target — the record that the erasure
+	// happened — so it is the actor column this asserts on.
+	pseudonymID := e2.App.Deps.AuditLog.Pseudonym(user.UserID)
+	pseudonymEmail := e2.App.Deps.AuditLog.Pseudonym(user.Email)
+	var lingeringPseudonym int
+	err = e.DB.QueryRow(context.Background(),
+		`SELECT count(*) FROM audit_log WHERE actor = $1 OR actor = $2`, pseudonymID, pseudonymEmail).Scan(&lingeringPseudonym)
+	if err != nil {
+		t.Fatalf("audit log pseudonym query: %v", err)
+	}
+	if lingeringPseudonym != 0 {
+		t.Errorf("audit log still attributes %d rows to the erased user's pseudonym", lingeringPseudonym)
+	}
+
+	// No raw identifier may survive in any column that can hold one.
+	var rawPII int
+	err = e.DB.QueryRow(context.Background(),
+		`SELECT count(*) FROM audit_log
+		  WHERE actor IN ($1, $2) OR target IN ($1, $2)
+		     OR details::text ILIKE '%' || $1 || '%'
+		     OR details::text ILIKE '%' || $2 || '%'`, user.UserID, user.Email).Scan(&rawPII)
 	if err != nil {
 		t.Fatalf("audit log PII query: %v", err)
 	}
-	if detailsHavePII > 0 {
-		t.Errorf("audit log details still contain PII after erasure")
+	if rawPII > 0 {
+		t.Errorf("audit log still contains the erasure subject's raw identifiers after erasure")
 	}
 }

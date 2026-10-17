@@ -338,3 +338,43 @@ func createUserWithPassword(t *testing.T, e *env, userID, email, password string
 	}
 	return user
 }
+
+// createAdmin creates an administrator, the only role the erasure endpoint admits.
+func createAdmin(t *testing.T, e *env, userID, email, password string) *domain.User {
+	t.Helper()
+	user, _ := fixtures.Admin(userID, email, password)
+	if err := e.App.Deps.Users.Create(context.Background(), user); err != nil {
+		t.Fatalf("create admin: %v", err)
+	}
+	return user
+}
+
+// signInAdmin signs an administrator in through the browser endpoints and returns a CSRF
+// token bound to the resulting session.
+//
+// A direct login (no auth_request_id) is answered with a redirect to "/" and a session
+// cookie, which is what the admin routes read. The second GET is what re-mints a token
+// under the session key the CSRF store validates unsafe requests against: the token that
+// minted the login form is stored under the anonymous key, so reusing it would fail.
+func signInAdmin(t *testing.T, e *env, email, password string) string {
+	t.Helper()
+
+	page := e.get("/login")
+	if page.StatusCode != http.StatusOK {
+		t.Fatalf("login page status = %d; body = %s", page.StatusCode, body(t, page))
+	}
+	resp := e.postForm("/login", url.Values{
+		"csrf_token": {hiddenInput(t, page, "csrf_token")},
+		"email":      {email},
+		"password":   {password},
+	})
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("admin login status = %d, want 303; body = %s", resp.StatusCode, body(t, resp))
+	}
+
+	sessionToken := e.get("/login")
+	if sessionToken.StatusCode != http.StatusOK {
+		t.Fatalf("post-login page status = %d; body = %s", sessionToken.StatusCode, body(t, sessionToken))
+	}
+	return hiddenInput(t, sessionToken, "csrf_token")
+}
