@@ -27,6 +27,7 @@ practices. This list is not a claim of full compliance or certification.
 * RFC 7591 (Dynamic Client Registration)
 * RFC 7636 (PKCE)
 * RFC 7662 (Token Introspection)
+* RFC 8628 (Device Authorization Grant)
 * RFC 9126 (Pushed Authorization Requests)
 * RFC 9207 (Authorization Server Issuer Identification)
 * OAuth 2.1 Draft (PKCE required, implicit removed, refresh rotation)
@@ -96,6 +97,24 @@ production. There is no UI for dynamic client registration, which remains
 disabled by default, and the OAuth resource-owner password grant remains
 unsupported.
 
+### Device authorization grant
+
+For devices with no browser or an awkward keyboard — TVs, CLIs, consoles — the
+server implements the device authorization grant (RFC 8628). A client registered
+for `urn:ietf:params:oauth:grant-type:device_code` calls `POST
+/device_authorization` and receives a short `user_code`, a `verification_uri`, and
+a high-entropy `device_code`. It shows the code to the user and polls `POST
+/token` with the `device_code` while the user, on a second device, opens
+`/device`, signs in, and approves the request. Only then does the poll return a
+token; until it does, the device gets `authorization_pending`, and a poll faster
+than the advertised `interval` gets `slow_down`.
+
+The `device_code` and the `user_code` are deliberately different. The
+`device_code` is a bearer secret, stored only as a SHA-256 digest, and it is the
+only value that redeems tokens. The `user_code` is short enough to type, is not a
+credential, and cannot be exchanged on its own: turning it into a token requires a
+logged-in browser to approve. See [API.md](API.md#device-authorization).
+
 ## Security Features
 
 1. **Email scope check at consent, not authorize** — scope eligibility is re-evaluated at every consent decision, so revoked email verification cannot silently grant `email`.
@@ -113,7 +132,7 @@ unsupported.
 13. **revocation_reason distinguishes rotation from logout** — `rotated` triggers family revocation; `logout`, `explicit`, `gdpr`, `admin` do not.
 14. **GDPR erasure collects notification list before deletion** — back-channel logout targets are captured before the user row is removed.
 15. **Access token revocation via introspection** — self-contained JWTs cannot be instantly withdrawn; `/introspect` is the documented mechanism (latency bounded by `tokens.access_ttl`).
-16. **Rate limit per authenticated client** — `/token` and `/par` are limited per client identity, not just per unauthenticated `client_id`.
+16. **Rate limit per authenticated client** — `/token`, `/par`, and `/device_authorization` are limited per client identity, not just per unauthenticated `client_id`.
 17. **Consent auto-skip, GET/POST logout, return URL validation, registration timing, audit anonymization** — consent auto-skip avoids the UI when scopes already cover the request; logout redirects are validated against a server-side allowlist; registration timing is equalized; audit actor fields are pseudonymised.
 
 ## Project Structure
@@ -171,7 +190,7 @@ Key sections in `config.yaml`:
 * `server` — host, port, issuer URL, trusted proxies
 * `database` — connection URL, pool sizes, statement timeout
 * `redis` — URL, revocation TTL padding, fail-closed on introspection
-* `tokens` — TTLs for access, refresh, ID tokens, auth codes, PAR, etc. (all **integer seconds**)
+* `tokens` — TTLs for access, refresh, ID tokens, auth codes, PAR, device codes, plus the device poll interval (all **integer seconds**)
 * `keys` — signing algorithm (**RS256 only**; ES256/PS256/EdDSA are reserved in the schema but not implemented, and are rejected at boot), key size, rotation interval, retention window, clock skew
 * `rate_limit` — per-endpoint limits (per IP, per account, per client)
 * `security` — password policy, Argon2 parameters, audit pepper env var, session cookie settings, allowed internal paths
@@ -196,10 +215,10 @@ This is an OAuth 2.1-aligned reference implementation, not a production-grade
 or fully compliant OAuth 2.1 or OpenID Connect server. It has not been audited
 or certified, and it has not passed the OpenID Foundation conformance suite.
 Access tokens are self-contained JWTs, so revocation is not real-time — it is
-bounded by `tokens.access_ttl` seconds. Device
-authorization (RFC 8628), DPoP (RFC 9449), mTLS (RFC 8705), and pairwise
-subjects are not implemented. Self-service password recovery is implemented;
-see [`SECURITY.md`](SECURITY.md) for that flow and the full limitations list.
+bounded by `tokens.access_ttl` seconds. DPoP (RFC 9449), mTLS (RFC 8705), and
+pairwise subjects are not implemented. Self-service password recovery is
+implemented; see [`SECURITY.md`](SECURITY.md) for that flow and the full
+limitations list.
 
 ## License
 

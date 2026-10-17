@@ -11,14 +11,15 @@ most OAuth server bugs.
 our own pages. Authenticated by a session cookie. CSRF-protected.
 
 `/authorize`, `/login`, `/mfa`, `/consent`, `/signup`, `/verify-email`,
-`GET /forgot-password`, and `GET /reset-password`
+`/device`, `GET /forgot-password`, and `GET /reset-password`
 
 **Machine** — called by a client or resource server. Authenticated by
 credentials in the request, never by a cookie. **Not** CSRF-protected.
 `Cache-Control: no-store` on every response.
 
 `/par`, `/token`, `/revoke`, `/introspect`, `/userinfo`, `/register`,
-`/users/register`, `POST /forgot-password`, and `POST /reset-password`
+`/device_authorization`, `/users/register`, `POST /forgot-password`, and
+`POST /reset-password`
 
 **Public** — no authentication, no side effects beyond caching.
 
@@ -145,11 +146,75 @@ Single use. A second presentation of the same `request_uri` is
 
 ---
 
+## Device authorization
+
+For clients that cannot open a browser or accept keyboard input directly. The
+client displays a code, the user approves it on a separate device, and the client
+polls for tokens.
+
+### `POST /device_authorization`
+
+Machine endpoint. Client authentication required. Public clients may use the
+`none` method. The client must be registered for
+`urn:ietf:params:oauth:grant-type:device_code`.
+
+```bash
+curl -u client_id:client_secret http://localhost:8080/device_authorization \
+  -d scope=openid+email
+```
+
+```json
+{
+  "device_code": "GmRhmhcxhwAzkoEqiMEg_DnyEysNkuNhszIySk9eS",
+  "user_code": "WDJB-MJHT",
+  "verification_uri": "http://localhost:8080/device",
+  "verification_uri_complete": "http://localhost:8080/device?user_code=WDJB-MJHT",
+  "expires_in": 600,
+  "interval": 5,
+  "scope": "openid email"
+}
+```
+
+`scope` appears only when the client requested one. `device_code` is a bearer
+secret; `user_code` is not. Read the model below before deciding what to display
+and what to store.
+
+### `GET /device` and `POST /device`
+
+Browser-interactive. The user opens `verification_uri`, signs in, and approves the
+request. `GET /device` renders the code-entry form (pre-filled when
+`verification_uri_complete` was used); `POST /device` submits it. Both require a
+session cookie and are CSRF-protected.
+
+| Field | Notes |
+|---|---|
+| `user_code` | Case-insensitive and hyphen-tolerant. Normalised to the registered form |
+| `decision` | `allow` or `deny` on the confirmation step |
+
+An unauthenticated visit redirects to `/login` and returns to `/device` afterwards.
+An unknown or expired code is rejected without revealing which.
+
+### The two codes
+
+| | `device_code` | `user_code` |
+|---|---|---|
+| Entropy | 256-bit, server-generated | ~8 characters |
+| Purpose | Redeems tokens at `/token` | Identifies the request to the user |
+| Stored as | SHA-256 digest only | Indexed plaintext, unique among live codes |
+| Secret? | **Yes** — treat like a password | No — safe to display and speak |
+| Lifetime | `expires_in` seconds | Same, or until approved/denied |
+
+The `user_code` cannot be exchanged for a token by itself. It only names a pending
+request; approval requires a logged-in browser session. That is what stops a user
+who reads the code aloud from handing an attacker a token.
+
+---
+
 ## Token
 
 ### `POST /token`
 
-Machine endpoint. Client authentication required. All three grants at one
+Machine endpoint. Client authentication required. All four grants at one
 endpoint.
 
 #### Grant type `authorization_code`
@@ -180,6 +245,34 @@ curl -u client_id:client_secret http://localhost:8080/token \
 
 Public clients (`token_endpoint_auth_method=none`) send only `client_id`.
 The `none` method is refused for `client_credentials`.
+
+#### Grant type `urn:ietf:params:oauth:grant-type:device_code`
+
+```bash
+curl -u client_id:client_secret http://localhost:8080/token \
+  -d grant_type=urn:ietf:params:oauth:grant-type:device_code \
+  -d device_code=GmRhmhcxhwAzkoEqiMEg_DnyEysNkuNhszIySk9eS
+```
+
+Polling. Until the user approves, the response is `400` with:
+
+```json
+{ "error": "authorization_pending" }
+```
+
+| Error | Meaning |
+|---|---|
+| `authorization_pending` | Not approved yet. Keep polling at `interval` |
+| `slow_down` | Polling faster than `interval`. Back off, then retry |
+| `access_denied` | The user denied the request. Stop polling |
+| `expired_token` | The `device_code` expired or is unknown. Start over |
+
+A poll must not arrive faster than the advertised `interval`; one that does
+returns `slow_down` and the server raises the interval for that request's
+subsequent polls. Unknown and expired codes are indistinguishable — both return
+`expired_token` — so the endpoint is not an oracle for guessing `device_code`s.
+
+On approval the response is the standard token response below.
 
 #### Response
 

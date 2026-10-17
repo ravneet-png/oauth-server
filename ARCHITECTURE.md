@@ -208,6 +208,7 @@ clients ──┬──< auth_codes >── auth_requests
           ├──< issued_access_tokens
           ├──< client_sessions >── sessions >── users
           ├──< par_requests
+          ├──< device_codes >── users
           └──< consents >── users
 
 users ──┬──< sessions ──< client_sessions
@@ -215,6 +216,7 @@ users ──┬──< sessions ──< client_sessions
         ├──< refresh_tokens
         ├──< mfa_backup_codes
         ├──< email_verifications
+        ├──< device_codes
         └──< consents
 
 revoked_tokens        (standalone, keyed by jti, TTL-driven)
@@ -353,6 +355,51 @@ Client          Server
    |<--------------|  access_token |
    |               |  (no user)    |
 ```
+
+### Device authorization flow
+
+```
+Device          Server          Browser (other device)
+   |               |               |
+   | POST /device_authorization    |
+   |--------------->|               |
+   |               | mint device_code (store digest)|
+   |               | mint user_code (store canonical)|
+   |<--------------| device_code   |
+   |               | user_code     |
+   |               | verification_uri|
+   |               |               |
+   | show user_code on screen      |
+   |               |               |
+   |               |   GET /device |
+   |               |<--------------|
+   |               |  (session, then login)|
+   |               |   POST /device|
+   |               |<-- user_code, allow |
+   |               | mark approved |
+   |               | bind user_id  |
+   |               |               |
+   | POST /token   |               |
+   | device_code   |               |
+   |--------------->|               |
+   |               | lookup digest |
+   |               | pending ->    |
+   |<--------------| authorization_pending|
+   |  (poll > interval)            |
+   |<--------------| slow_down, widen interval|
+   |  (approved, poll on time)     |
+   |               | Consume (atomic)|
+   |<--------------| access + refresh|
+   |               |  (+ id_token if openid)|
+```
+
+The `device_code` is the only value that redeems tokens; the short `user_code`
+only names the pending request for the browser. Approval requires an
+authenticated session and an explicit decision, which is why a user reading the
+code aloud does not hand anyone a token. `/device_authorization` shares the token
+endpoint's per-client rate-limit budget, and poll responses are floored by the
+advertised `interval`: an early poll is answered `slow_down` and the interval is
+widened.
 
 ### Refresh flow
 

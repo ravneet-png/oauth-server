@@ -175,6 +175,7 @@ Two tiers, both backed by Redis with Lua for atomicity:
 | `/login` | 5/min | 10/hour per email |
 | `/mfa` | — | 3/min per pending challenge, 5 total attempts |
 | `/token` | 10/min unauthenticated | 60/min per client |
+| `/device_authorization` | 10/min unauthenticated | 60/min per client |
 | `/par` | — | 60/min per client |
 | `/users/register`, `POST /forgot-password`, `POST /reset-password` | 3/hour | — |
 | `/register` | 3/hour | — |
@@ -189,10 +190,11 @@ ignored entirely, which is the correct default.
 ## CSRF
 
 Cookie-authenticated browser endpoints (`/authorize`, `/login`, `/mfa`,
-`/consent`) require a CSRF token bound to the flow. Machine endpoints
-(`/token`, `/revoke`, `/introspect`, `/par`, `POST /forgot-password`,
-`POST /reset-password`) do not — they are not cookie-authenticated, and
-wrapping them in cookie-based CSRF breaks non-browser clients.
+`/consent`, `/device`) require a CSRF token bound to the flow. Machine endpoints
+(`/token`, `/revoke`, `/introspect`, `/par`, `/device_authorization`,
+`POST /forgot-password`, `POST /reset-password`) do not — they are not
+cookie-authenticated, and wrapping them in cookie-based CSRF breaks non-browser
+clients.
 
 The skip list is a positive allowlist by route group, not a denylist.
 
@@ -217,6 +219,28 @@ Retention is enforced by dropping monthly partitions, not by ad-hoc `DELETE`.
 
 Erasure nulls `actor`, `ip_address` and `user_agent`. It does **not** attempt to
 rewrite arbitrary JSONB, which cannot be done soundly by removing top-level keys.
+
+## Device authorization grant
+
+The grant (RFC 8628) runs two credentials of deliberately different strength on
+one record:
+
+- **`device_code`** is a 256-bit bearer secret. It is the only value that redeems
+  tokens, and only its SHA-256 digest is ever stored, so a database read cannot
+  yield a usable credential. A wrong-client or wrong-code poll answers
+  `invalid_grant`/`expired_token` without revealing whether the code exists.
+- **`user_code`** is ~8 characters and is **not** a secret. It cannot be
+  exchanged for a token on its own: redeeming it requires an authenticated
+  browser session, an explicit allow/deny decision, and all of it inside the
+  code's short lifetime. That is what stops a user who reads the code aloud from
+  handing an attacker a token.
+
+Tokens minted from a device grant carry **no session id** on purpose. A device
+token belongs to the device, not to the browser that approved it, so a logout in
+that browser must not revoke a token the device still legitimately holds. Polls
+are floored to the advertised `interval`; an early poll is refused `slow_down`
+and the interval is widened, which bounds how fast a stolen `device_code` can be
+tested.
 
 ## Known risks
 
