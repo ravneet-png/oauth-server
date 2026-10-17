@@ -92,6 +92,13 @@ type TokensConfig struct {
 	AuthRequestTTLSeconds       int
 	EmailVerificationTTLSeconds int
 	MFAPendingTTLSeconds        int
+
+	// DeviceCodeTTLSeconds is how long a device_code stays redeemable, and
+	// DeviceCodeIntervalSeconds is the minimum delay between polls the client is
+	// told to honour. The interval is enforced, not merely advertised: a client
+	// that polls faster gets slow_down.
+	DeviceCodeTTLSeconds      int
+	DeviceCodeIntervalSeconds int
 }
 
 // KeysConfig holds signing key policy.
@@ -462,6 +469,20 @@ func (c *Config) Validate(s Secrets) error {
 		problems = append(problems, "tokens.refresh_absolute_ttl must be >= tokens.refresh_idle_ttl")
 	}
 
+	// Device grant. A non-positive TTL makes every code instantly dead, and a
+	// non-positive interval lets a client poll without a floor. An interval at or
+	// above the TTL means the first poll could already be too late, which is a
+	// configuration that can never succeed.
+	if c.Tokens.DeviceCodeTTLSeconds <= 0 {
+		problems = append(problems, "tokens.device_code_ttl must be positive")
+	}
+	if c.Tokens.DeviceCodeIntervalSeconds <= 0 {
+		problems = append(problems, "tokens.device_code_interval must be positive")
+	}
+	if c.Tokens.DeviceCodeTTLSeconds > 0 && c.Tokens.DeviceCodeIntervalSeconds >= c.Tokens.DeviceCodeTTLSeconds {
+		problems = append(problems, "tokens.device_code_interval must be less than tokens.device_code_ttl")
+	}
+
 	// Argon2. These are OWASP minimums as of the 2023 guidance; below them the
 	// password hash is cheaper to attack than the attacker's budget assumes.
 	if c.Security.Argon2.MemoryKiB < 19456 {
@@ -601,6 +622,14 @@ func (c TokensConfig) EmailVerificationTTL() time.Duration {
 // MFAPendingTTL returns tokens.mfa_pending_ttl.
 func (c TokensConfig) MFAPendingTTL() time.Duration { return seconds(c.MFAPendingTTLSeconds) }
 
+// DeviceCodeTTL returns tokens.device_code_ttl.
+func (c TokensConfig) DeviceCodeTTL() time.Duration { return seconds(c.DeviceCodeTTLSeconds) }
+
+// DeviceCodeInterval returns tokens.device_code_interval.
+func (c TokensConfig) DeviceCodeInterval() time.Duration {
+	return seconds(c.DeviceCodeIntervalSeconds)
+}
+
 // StatementTimeout returns database.statement_timeout_ms.
 func (c DatabaseConfig) StatementTimeout() time.Duration {
 	return time.Duration(c.StatementTimeoutMS) * time.Millisecond
@@ -675,6 +704,8 @@ func Decode(v *viper.Viper, env []string) *Config {
 	cfg.Tokens.AuthRequestTTLSeconds = v.GetInt("tokens.auth_request_ttl")
 	cfg.Tokens.EmailVerificationTTLSeconds = v.GetInt("tokens.email_verification_ttl")
 	cfg.Tokens.MFAPendingTTLSeconds = v.GetInt("tokens.mfa_pending_ttl")
+	cfg.Tokens.DeviceCodeTTLSeconds = v.GetInt("tokens.device_code_ttl")
+	cfg.Tokens.DeviceCodeIntervalSeconds = v.GetInt("tokens.device_code_interval")
 
 	cfg.Keys.Algorithm = v.GetString("keys.algorithm")
 	cfg.Keys.KeySize = v.GetInt("keys.key_size")

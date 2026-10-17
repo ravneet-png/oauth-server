@@ -27,8 +27,16 @@ const (
 	AuditConsentGranted       = "consent.granted"
 	AuditConsentRevoked       = "consent.revoked"
 
-	AuditCodeIssued         = "code.issued"
-	AuditCodeReuseDetected  = "code.reuse_detected"
+	AuditCodeIssued        = "code.issued"
+	AuditCodeReuseDetected = "code.reuse_detected"
+
+	// Device Authorization Grant (RFC 8628). The code is issued to a client, and
+	// authorized or denied by a user on a second device, so the two halves are
+	// separate events an investigator can correlate on the client.
+	AuditDeviceCodeIssued = "device.code_issued"
+	AuditDeviceAuthorized = "device.authorized"
+	AuditDeviceDenied     = "device.denied"
+
 	AuditTokenIssued        = "token.issued"
 	AuditTokenRefreshed     = "token.refreshed"
 	AuditTokenFamilyRevoked = "token.family_revoked"

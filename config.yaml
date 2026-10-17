@@ -50,6 +50,12 @@ tokens:
   auth_request_ttl: 900
   email_verification_ttl: 86400
   mfa_pending_ttl: 300
+  # Device Authorization Grant (RFC 8628). A device_code is redeemable for this
+  # long, and a polling client must wait at least device_code_interval seconds
+  # between token requests. The interval is enforced, not just advertised: a
+  # faster client is told to slow_down. The interval must be less than the TTL.
+  device_code_ttl: 600
+  device_code_interval: 5
 
 keys:
   # RS256 only. ES256, PS256 and EdDSA are reserved in the schema for a future

@@ -341,6 +341,8 @@ func testConfig() *config.Config {
 			AuthRequestTTLSeconds:       900,
 			EmailVerificationTTLSeconds: 86400,
 			MFAPendingTTLSeconds:        300,
+			DeviceCodeTTLSeconds:        600,
+			DeviceCodeIntervalSeconds:   5,
 		},
 		Keys: config.KeysConfig{
 			Algorithm:        "RS256",

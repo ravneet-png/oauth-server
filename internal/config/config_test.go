@@ -308,6 +308,35 @@ func TestRefreshAbsoluteTTLMustNotBeBelowIdle(t *testing.T) {
 	}
 }
 
+// TestDeviceCodeIntervalMustBeBelowTTL: an interval at or above the device_code
+// TTL is a configuration that can never succeed — the first permitted poll is
+// already past expiry — so it is refused at boot rather than discovered as an
+// always-expired grant in production.
+func TestDeviceCodeIntervalMustBeBelowTTL(t *testing.T) {
+	env := withEnv(
+		"OAUTH_TOKENS_DEVICE_CODE_TTL=5",
+		"OAUTH_TOKENS_DEVICE_CODE_INTERVAL=5",
+	)
+
+	_, _, err := Load(LoaderOptions{Path: "../../config.yaml", Environment: env})
+	if err == nil {
+		t.Fatal("Load accepted a device_code interval equal to the TTL")
+	}
+	if !strings.Contains(err.Error(), "device_code") {
+		t.Errorf("error does not name the setting: %v", err)
+	}
+}
+
+// TestDeviceCodeIntervalMustBePositive: a non-positive interval removes the poll
+// floor, letting a client drive the token endpoint in a tight loop.
+func TestDeviceCodeIntervalMustBePositive(t *testing.T) {
+	env := withEnv("OAUTH_TOKENS_DEVICE_CODE_INTERVAL=0")
+
+	if _, _, err := Load(LoaderOptions{Path: "../../config.yaml", Environment: env}); err == nil {
+		t.Fatal("Load accepted a non-positive device_code interval")
+	}
+}
+
 func TestWeakArgon2Refused(t *testing.T) {
 	env := withEnv("OAUTH_SECURITY_ARGON2_MEMORY_KIB=8192")
 

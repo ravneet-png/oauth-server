@@ -336,6 +336,12 @@ func (r *UserRepo) Delete(ctx context.Context, userID string) error {
 	if err := exec("auth_requests", `DELETE FROM auth_requests WHERE user_id = $1`, userID); err != nil {
 		return err
 	}
+	// Delete device authorization requests (FK ON DELETE RESTRICT). Only rows the
+	// user actually approved carry a subject; pending and denied requests hold no
+	// user_id and are left for the reaper.
+	if err := exec("device_codes", `DELETE FROM device_codes WHERE user_id = $1`, userID); err != nil {
+		return err
+	}
 	// Scrub audit log entries for this user.
 	// The audit_log table has no user_id column; actor and target are HMAC hashes.
 	// We scrub by setting actor='DELETED', target='DELETED', session_id=NULL,

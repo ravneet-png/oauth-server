@@ -28,6 +28,11 @@ const (
 	GrantAuthorizationCode = "authorization_code"
 	GrantClientCredentials = "client_credentials"
 	GrantRefreshToken      = "refresh_token"
+
+	// GrantDeviceCode is the RFC 8628 device authorization grant. A client polls
+	// the token endpoint with this grant and a device_code once a user has
+	// approved the request on a second device.
+	GrantDeviceCode = "urn:ietf:params:oauth:grant-type:device_code"
 )
 
 // Subject types for pairwise subject identifiers.

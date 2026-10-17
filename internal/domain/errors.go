@@ -40,6 +40,13 @@ const (
 
 	// RFC 9068, section 2.1.
 	ErrCodeUnsupportedTokenType = "unsupported_token_type"
+
+	// RFC 8628, section 3.5. Device Authorization Grant polling outcomes. All
+	// three are delivered as 400 on the token endpoint, alongside the usual
+	// invalid_grant for a request that can never succeed.
+	ErrCodeAuthorizationPending = "authorization_pending"
+	ErrCodeSlowDown             = "slow_down"
+	ErrCodeExpiredToken         = "expired_token"
 )
 
 // OAuthError is the wire representation of a protocol error.
@@ -150,6 +157,26 @@ func NewUnauthorizedClient(desc string) *OAuthError {
 // including the implicit and password grants that OAuth 2.1 removed.
 func NewUnsupportedGrantType(desc string) *OAuthError {
 	return &OAuthError{Code: ErrCodeUnsupportedGrantType, Description: desc, HTTPStatus: http.StatusBadRequest}
+}
+
+// NewAuthorizationPending reports that the device flow's user step has not
+// completed yet. RFC 8628 section 3.5: the client should keep polling at the
+// advertised interval.
+func NewAuthorizationPending(desc string) *OAuthError {
+	return &OAuthError{Code: ErrCodeAuthorizationPending, Description: desc, HTTPStatus: http.StatusBadRequest}
+}
+
+// NewSlowDown reports that the client polled faster than the interval it was
+// told to honour. RFC 8628 section 3.5: the client must increase its interval.
+func NewSlowDown(desc string) *OAuthError {
+	return &OAuthError{Code: ErrCodeSlowDown, Description: desc, HTTPStatus: http.StatusBadRequest}
+}
+
+// NewExpiredToken reports that a device_code lapsed before it was redeemed, or
+// that the value presented is not a live code at all. The two are one answer to
+// the client, which is why they share a code.
+func NewExpiredToken(desc string) *OAuthError {
+	return &OAuthError{Code: ErrCodeExpiredToken, Description: desc, HTTPStatus: http.StatusBadRequest}
 }
 
 // NewInvalidScope reports scopes that are malformed, unknown, or not permitted
